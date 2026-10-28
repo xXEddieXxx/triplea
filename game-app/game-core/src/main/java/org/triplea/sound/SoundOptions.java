@@ -6,7 +6,6 @@ import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
 import org.triplea.swing.JMenuItemBuilder;
 import org.triplea.swing.JMenuItemCheckBoxBuilder;
 import org.triplea.swing.key.binding.KeyCode;
@@ -28,19 +27,17 @@ public final class SoundOptions {
     return itemBuilder.build();
   }
 
-  private static void showSoundOptions() {
+  /** Shows the sounds to turn on or off one by one, eg from the Audio settings. */
+  public static void showSoundOptions() {
     final String ok = "OK";
     final String cancel = "Cancel";
     final String selectAll = "All";
     final String selectNone = "None";
 
     final List<SoundOptionCheckBox> properties = SoundPath.getSoundOptions();
-    final JScrollPane scroll = new JScrollPane(new PropertiesUi(properties, true));
-    scroll.setBorder(null);
-    scroll.getViewport().setBorder(null);
     final JOptionPane pane =
         new JOptionPane(
-            scroll,
+            PropertiesUi.newScrollableView(new PropertiesUi(properties, true)),
             JOptionPane.PLAIN_MESSAGE,
             JOptionPane.DEFAULT_OPTION,
             null,

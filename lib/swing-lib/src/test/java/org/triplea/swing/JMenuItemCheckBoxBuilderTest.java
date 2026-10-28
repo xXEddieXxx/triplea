@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
 import java.awt.event.KeyEvent;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.jetbrains.annotations.NonNls;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,46 @@ class JMenuItemCheckBoxBuilderTest {
             .build();
 
     assertThat(checkBoxMenuItem.isSelected()).isTrue();
+  }
+
+  @DisplayName("A check box bound to a setting shows it, also after something else changed it")
+  @Test
+  void boundCheckBoxFollowsTheSetting() {
+    final AtomicBoolean setting = new AtomicBoolean(true);
+    final var checkBoxMenuItem =
+        new JMenuItemCheckBoxBuilder(TITLE, KeyCode.A).bindSetting(persistenceOf(setting)).build();
+
+    setting.set(false);
+
+    assertThat(checkBoxMenuItem.isSelected())
+        .as("eg the settings window turned the setting off after the menu was built")
+        .isFalse();
+  }
+
+  @DisplayName("Clicking a check box bound to a setting saves the new value")
+  @Test
+  void clickingBoundCheckBoxSavesTheSetting() {
+    final AtomicBoolean setting = new AtomicBoolean(true);
+    final var checkBoxMenuItem =
+        new JMenuItemCheckBoxBuilder(TITLE, KeyCode.A).bindSetting(persistenceOf(setting)).build();
+
+    checkBoxMenuItem.doClick();
+
+    assertThat(setting.get()).as("the tick was removed").isFalse();
+  }
+
+  private static SettingPersistence persistenceOf(final AtomicBoolean setting) {
+    return new SettingPersistence() {
+      @Override
+      public void saveSetting(final boolean value) {
+        setting.set(value);
+      }
+
+      @Override
+      public boolean getSetting() {
+        return setting.get();
+      }
+    };
   }
 
   @Nested

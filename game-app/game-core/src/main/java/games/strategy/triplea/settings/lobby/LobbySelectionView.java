@@ -17,7 +17,6 @@ import javax.swing.JTextField;
 import org.triplea.java.StringUtils;
 import org.triplea.java.exception.UnhandledSwitchCaseException;
 import org.triplea.swing.JTextFieldBuilder;
-import org.triplea.swing.SwingComponents;
 import org.triplea.swing.jpanel.JPanelBuilder;
 import org.triplea.ui.events.queue.ViewClass;
 
@@ -38,8 +37,6 @@ class LobbySelectionView
     RADIO_BUTTON_CHANGED,
     /** User clicks reset to default, values on screen should revert to factory settings */
     RESET_TO_DEFAULT,
-    /** Any changes not yet saved should revert to last saved preference */
-    RESET,
     // There should be a 'SAVE' action here, except UI will handle 'SAVE' action on its own,
     // (reason: difficult, UI is coupled to 'SaveContext')
   }
@@ -131,24 +128,19 @@ class LobbySelectionView
     return uiComponent;
   }
 
+  /** An invalid address is reported, so the settings window says so before closing. */
   @Override
   public void save(final SaveContext context) {
     final String uri = uriField.getText().trim();
     if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
-      SwingComponents.showError(
-          null,
-          "Invalid Lobby URI",
-          String.format("Invalid URI specified: %s\nMust start with 'https://' or 'http://'", uri));
+      context.reportError(ClientSetting.lobbyUri, "must start with 'https://' or 'http://'", uri);
     } else {
       try {
         // truncate trailing slash if present on the Uri field
         final URI newLobbyUri = new URI(StringUtils.truncateEnding(uri, "/"));
         context.setValue(ClientSetting.lobbyUri, newLobbyUri);
       } catch (final URISyntaxException e) {
-        SwingComponents.showError(
-            null,
-            "Invalid Lobby URI",
-            String.format("Invalid URI specified: %s\n%s", uri, e.getMessage()));
+        context.reportError(ClientSetting.lobbyUri, e.getMessage(), uri);
       }
     }
   }
@@ -156,10 +148,5 @@ class LobbySelectionView
   @Override
   public void resetToDefault() {
     lobbySelectionEventQueue.publishUiEvent(Events.RESET_TO_DEFAULT, readDataState());
-  }
-
-  @Override
-  public void reset() {
-    lobbySelectionEventQueue.publishUiEvent(Events.RESET, readDataState());
   }
 }

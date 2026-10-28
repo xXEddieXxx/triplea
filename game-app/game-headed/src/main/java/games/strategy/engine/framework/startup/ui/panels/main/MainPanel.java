@@ -3,13 +3,15 @@ package games.strategy.engine.framework.startup.ui.panels.main;
 import games.strategy.engine.chat.ChatPanel;
 import games.strategy.engine.framework.HtmlUtils;
 import games.strategy.engine.framework.I18nEngineFramework;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.engine.framework.startup.ui.MetaSetupPanel;
 import games.strategy.engine.framework.startup.ui.SetupPanel;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorPanel;
+import games.strategy.engine.framework.ui.BackBar;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -21,11 +23,10 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.EtchedBorder;
 import org.triplea.game.chat.ChatModel;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.SwingAction;
+import org.triplea.swing.SwingComponents;
 import org.triplea.swing.jpanel.GridBagConstraintsAnchor;
 import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
 import org.triplea.swing.jpanel.GridBagConstraintsFill;
@@ -38,7 +39,7 @@ import org.triplea.swing.jpanel.JPanelBuilder;
  */
 public class MainPanel extends JPanel {
   private static final long serialVersionUID = -5548760379892913464L;
-  private static final Dimension initialSize = new Dimension(900, 780);
+  private static final Dimension initialSize = new Dimension(1000, 760);
 
   private final JButton playButton =
       new JButtonBuilder()
@@ -50,20 +51,23 @@ public class MainPanel extends JPanel {
                   .lineBreak()
                   .addText(
                       I18nEngineFramework.get().getText("startup.MainPanel.btn.Play.Tltp.line2"))
-                  .lineBreak()
-                  .addText(
-                      I18nEngineFramework.get().getText("startup.MainPanel.btn.Play.Tltp.line3"))
                   .toString())
           .build();
-  private final JButton cancelButton =
-      new JButtonBuilder()
-          .title(I18nEngineFramework.get().getText("startup.MainPanel.btn.Cancel.Lbl"))
-          .build();
+  // leaves a setup screen for the main menu, by the link back of its bar
+  private final Runnable cancelAction;
+  // the bar of a setup screen across the top, with the link back and the title
+  private final JPanel barHolder = new JPanelBuilder().borderLayout().build();
 
   private final JPanel gameSetupPanelHolder = new JPanelBuilder().borderLayout().build();
+  private final JScrollPane gameSetupPanelScroll = new JScrollPane(gameSetupPanelHolder);
+  // the scroll pane for setup screens, or the main menu and the lobby, which fit without one
+  private final JPanel setupArea = new JPanelBuilder().borderLayout().build();
   private final JPanel mainPanel;
   private final JSplitPane chatSplit;
   private final JPanel chatPanelHolder = new JPanelBuilder().height(62).borderLayout().build();
+  // the buttons of the current screen, right of the quit button: [Network...] [Start Game]
+  private final JPanel screenButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+  private final JPanel footer;
   private SetupPanel gameSetupPanel;
   private final GameSelectorPanel gameSelectorPanel;
 
@@ -78,12 +82,16 @@ public class MainPanel extends JPanel {
       @Nullable final ChatModel chatModel,
       final Runnable cancelAction) {
     this.gameSelectorPanel = gameSelectorPanel;
+    this.cancelAction = cancelAction;
     playButton.addActionListener(e -> launchAction.accept(this));
-    cancelButton.addActionListener(e -> cancelAction.run());
+    LookAndFeel.setPrimaryButtonStyle(playButton);
 
-    gameSelectorPanel.setBorder(new EtchedBorder());
-    final JScrollPane gameSetupPanelScroll = new JScrollPane(gameSetupPanelHolder);
+    gameSelectorPanel.setBorder(
+        BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 0, 1, LookAndFeel.getSeparatorColor()),
+            BorderFactory.createEmptyBorder(16, 16, 12, 16)));
     gameSetupPanelScroll.setBorder(BorderFactory.createEmptyBorder());
+    SwingComponents.setScrollSpeed(gameSetupPanelScroll);
     chatSplit = new JSplitPane();
     chatSplit.setOrientation(JSplitPane.VERTICAL_SPLIT);
     chatSplit.setResizeWeight(0.8);
@@ -96,10 +104,11 @@ public class MainPanel extends JPanel {
         new GridBagConstraintsBuilder(0, 0)
             .anchor(GridBagConstraintsAnchor.WEST)
             .fill(GridBagConstraintsFill.VERTICAL)
+            .weightY(1.0)
             .build());
 
     mainPanel.add(
-        gameSetupPanelScroll,
+        setupArea,
         new GridBagConstraintsBuilder(1, 0)
             .anchor(GridBagConstraintsAnchor.CENTER)
             .fill(GridBagConstraintsFill.BOTH)
@@ -120,15 +129,17 @@ public class MainPanel extends JPanel {
             .toolTip(I18nEngineFramework.get().getText("startup.MainPanel.btn.Quit.Tltp"))
             .actionListener(quitAction)
             .build();
-    final JPanel buttonsPanel =
-        new JPanelBuilder().borderEtched().add(playButton).add(quitButton).build();
-    add(buttonsPanel, BorderLayout.SOUTH);
+    footer =
+        new JPanelBuilder()
+            .border(LookAndFeel.newFooterBorder())
+            .borderLayout()
+            .addWest(quitButton)
+            .addEast(screenButtons)
+            .build();
+    add(footer, BorderLayout.SOUTH);
+    add(barHolder, BorderLayout.NORTH);
     setPreferredSize(initialSize);
     updatePlayButtonState();
-  }
-
-  public void loadSaveFile(final Path file) {
-    gameSelectorPanel.loadSaveFile(file);
   }
 
   private void addChat(final Component chatComponent) {
@@ -154,18 +165,33 @@ public class MainPanel extends JPanel {
     updatePlayButtonState();
 
     gameSetupPanelHolder.removeAll();
-    gameSetupPanelHolder.add(panel, BorderLayout.CENTER);
-    // add the cancel button if we are not choosing the type.
+    setupArea.removeAll();
+    // The main menu (choosing how to play) and the lobby fill the window: they have no game,
+    // nothing to start, and the lobby has a bar of its own. The main menu fits the window without
+    // scroll bars by hiding what does not fit; the lobby scrolls in a very low window.
+    if (panel.isMainMenu()) {
+      setupArea.add(panel, BorderLayout.CENTER);
+    } else {
+      gameSetupPanelHolder.add(panel, BorderLayout.CENTER);
+      setupArea.add(gameSetupPanelScroll, BorderLayout.CENTER);
+    }
+    gameSelectorPanel.setVisible(!panel.isFullWindow());
+    footer.setVisible(!panel.isFullWindow());
+    barHolder.removeAll();
+    barHolder.setVisible(!panel.isFullWindow());
+    if (!panel.isFullWindow()) {
+      // the way back is the link of the bar; the footer keeps the ways forward
+      barHolder.add(
+          new BackBar(MetaSetupPanel.getMainMenuTitle(), panel.getScreenTitle(), cancelAction),
+          BorderLayout.CENTER);
+    }
+    screenButtons.removeAll();
     if (panel.isCancelButtonVisible()) {
-      final JPanel cancelPanel = new JPanel();
-      cancelPanel.setBorder(new EmptyBorder(10, 0, 10, 10));
-      cancelPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
       final List<Action> actions = gameSetupPanel.getUserActions();
       if (!actions.isEmpty()) {
-        createUserActionMenu(cancelPanel, actions);
+        screenButtons.add(newUserActionMenuButton(actions));
       }
-      cancelPanel.add(cancelButton);
-      gameSetupPanelHolder.add(cancelPanel, BorderLayout.SOUTH);
+      screenButtons.add(playButton);
     }
 
     Optional.ofNullable(panel.getChatModel())
@@ -179,9 +205,10 @@ public class MainPanel extends JPanel {
             });
 
     revalidate();
+    repaint();
   }
 
-  private static void createUserActionMenu(final JPanel cancelPanel, final List<Action> actions) {
+  private static JButton newUserActionMenuButton(final List<Action> actions) {
     // if we need this for something other than network, add a way to set it
     final JButton button =
         new JButton(I18nEngineFramework.get().getText("startup.MainPanel.btn.Network.Lbl"));
@@ -193,7 +220,14 @@ public class MainPanel extends JPanel {
           }
           menu.show(button, 0, button.getHeight());
         });
-    cancelPanel.add(button);
+    return button;
+  }
+
+  /** The title of the screen shown, eg "Main menu", where the link back of a page leads. */
+  public String getScreenTitle() {
+    return Optional.ofNullable(gameSetupPanel)
+        .map(SetupPanel::getScreenTitle)
+        .orElseGet(MetaSetupPanel::getMainMenuTitle);
   }
 
   public void updatePlayButtonState() {

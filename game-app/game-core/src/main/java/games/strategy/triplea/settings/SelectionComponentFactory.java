@@ -3,6 +3,7 @@ package games.strategy.triplea.settings;
 import static org.triplea.util.Arrays.withSensitiveArray;
 import static org.triplea.util.Arrays.withSensitiveArrayAndReturn;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import games.strategy.engine.framework.startup.ui.posted.game.DiceServerEditor;
 import games.strategy.engine.framework.startup.ui.posted.game.pbem.EmailProviderPreset;
@@ -10,11 +11,15 @@ import games.strategy.engine.framework.system.HttpProxy;
 import games.strategy.engine.framework.ui.background.BackgroundTaskRunner;
 import games.strategy.engine.posted.game.pbf.NodeBbTokenGenerator;
 import games.strategy.engine.posted.game.pbf.NodeBbTokenGenerator.TokenInfo;
+import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.event.ActionListener;
+import java.io.Serial;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +39,9 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JRadioButton;
+import javax.swing.JSlider;
 import javax.swing.JSpinner;
+import javax.swing.JSpinner.DefaultEditor;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import org.triplea.swing.JButtonBuilder;
@@ -49,6 +56,8 @@ import org.triplea.swing.jpanel.JPanelBuilder;
  * of the UI code to ensure we render the proper swing component with validation.
  */
 final class SelectionComponentFactory {
+  private static final int COMBO_BOX_WIDTH = 220;
+
   private SelectionComponentFactory() {}
 
   static SelectionComponent<JComponent> proxySettings(
@@ -187,14 +196,6 @@ final class SelectionComponentFactory {
         userButton.setSelected(proxyChoice == HttpProxy.ProxyChoice.USE_USER_PREFERENCES);
         enableUserSettings.actionPerformed(null);
       }
-
-      @Override
-      public void reset() {
-        ClientSetting.flush();
-        hostText.setText(proxyHostClientSetting.getValue().orElse(""));
-        portText.setText(proxyPortClientSetting.getValue().map(Object::toString).orElse(""));
-        setProxyChoice(proxyChoiceClientSetting.getValueOrThrow());
-      }
     };
   }
 
@@ -236,6 +237,16 @@ final class SelectionComponentFactory {
 
       @Override
       public void save(final SaveContext context) {
+        // a number typed but not confirmed yet counts too, eg when the settings close by Escape
+        try {
+          component.commitEdit();
+        } catch (final ParseException e) {
+          context.reportError(
+              clientSetting,
+              String.format("must be a number from %d to %d", lo, hi),
+              ((DefaultEditor) component.getEditor()).getTextField().getText());
+          return;
+        }
         context.setValue(clientSetting, getComponentValue());
       }
 
@@ -248,49 +259,119 @@ final class SelectionComponentFactory {
       public void resetToDefault() {
         component.setValue(toValidIntValue(clientSetting.getDefaultValue()));
       }
-
-      @Override
-      public void reset() {
-        component.setValue(toValidIntValue(clientSetting.getValue()));
-      }
     };
   }
 
-  /** yes/no radio buttons. */
-  static SelectionComponent<JComponent> booleanRadioButtons(
-      final ClientSetting<Boolean> clientSetting) {
-    return new SelectionComponent<>() {
-      final boolean initialSelection = clientSetting.getValueOrThrow();
-      final JRadioButton yesButton = new JRadioButton("True");
-      final JRadioButton noButton = new JRadioButton("False");
-      final JPanel buttonPanel =
-          new JPanelBuilder().boxLayoutHorizontal().add(yesButton).add(noButton).build();
+  /**
+   * A slider for a number of a small range, the value and its unit right of it, eg "300 ms"; the
+   * unit may be empty. Ranges too large to slide sensibly take {@link #intValueRange} instead.
+   */
+  static SelectionComponent<JComponent> intSlider(
+      final ClientSetting<Integer> clientSetting, final int lo, final int hi, final String unit) {
+    final JSlider slider = new JSlider(lo, hi, clientSetting.getValue().orElse(lo));
+    // a wide range moves in round steps, so a value like 600 s can be hit with mouse and keys
+    slider.setMinorTickSpacing(sliderStep(hi - lo));
+    slider.setSnapToTicks(true);
+    final String widestValue = formatSliderValue(hi, unit);
+    final JLabel valueLabel =
+        new JLabel(formatSliderValue(slider.getValue(), unit)) {
+          @Serial private static final long serialVersionUID = 6203372262404871337L;
 
+          // as wide as the largest value, so the slider keeps its place while it moves
+          @Override
+          public Dimension getPreferredSize() {
+            final Dimension size = super.getPreferredSize();
+            return new Dimension(
+                Math.max(size.width, getFontMetrics(getFont()).stringWidth(widestValue)),
+                size.height);
+          }
+        };
+    slider.addChangeListener(e -> valueLabel.setText(formatSliderValue(slider.getValue(), unit)));
+    final JPanel panel = new JPanel(new BorderLayout(12, 0));
+    panel.setOpaque(false);
+    panel.add(slider, BorderLayout.CENTER);
+    panel.add(valueLabel, BorderLayout.EAST);
+    return new SelectionComponent<>() {
       @Override
       public JComponent getUiComponent() {
-        yesButton.setSelected(initialSelection);
-        noButton.setSelected(!initialSelection);
-        SwingComponents.assignToButtonGroup(yesButton, noButton);
-        return buttonPanel;
+        return panel;
       }
 
       @Override
       public void save(final SaveContext context) {
-        context.setValue(clientSetting, yesButton.isSelected());
+        context.setValue(clientSetting, slider.getValue());
       }
 
       @Override
       public void resetToDefault() {
-        final boolean value = clientSetting.getDefaultValue().orElse(false);
-        yesButton.setSelected(value);
-        noButton.setSelected(!value);
+        slider.setValue(clientSetting.getDefaultValue().orElse(lo));
+      }
+    };
+  }
+
+  /** About a hundred to a few hundred positions, whatever the range. */
+  @VisibleForTesting
+  static int sliderStep(final int range) {
+    if (range <= 300) {
+      return 1;
+    }
+    if (range <= 600) {
+      return 5;
+    }
+    return range <= 1500 ? 10 : 50;
+  }
+
+  private static String formatSliderValue(final int value, final String unit) {
+    return unit.isEmpty() ? String.valueOf(value) : value + " " + unit;
+  }
+
+  /**
+   * An on/off switch, a check box for keyboard and screen readers; the settings window names it by
+   * the setting's title next to it.
+   */
+  static SelectionComponent<JComponent> booleanCheckBox(
+      final ClientSetting<Boolean> clientSetting) {
+    return new SelectionComponent<>() {
+      final JCheckBox checkBox = new ToggleSwitch();
+
+      @Override
+      public JComponent getUiComponent() {
+        checkBox.setSelected(clientSetting.getValueOrThrow());
+        return checkBox;
       }
 
       @Override
-      public void reset() {
-        final boolean value = clientSetting.getValueOrThrow();
-        yesButton.setSelected(value);
-        noButton.setSelected(!value);
+      public void save(final SaveContext context) {
+        context.setValue(clientSetting, checkBox.isSelected());
+      }
+
+      @Override
+      public void resetToDefault() {
+        checkBox.setSelected(clientSetting.getDefaultValue().orElse(false));
+      }
+    };
+  }
+
+  /**
+   * A button that opens more settings of their own, which save themselves, eg the single sounds;
+   * nothing for Done or Reset to do.
+   */
+  static SelectionComponent<JComponent> button(final String text, final Runnable action) {
+    final JButton button = new JButtonBuilder(text).actionListener(action).build();
+    return new SelectionComponent<>() {
+      @Override
+      public JComponent getUiComponent() {
+        return button;
+      }
+
+      @Override
+      public void save(final SaveContext context) {
+        // the opened settings save themselves
+      }
+
+      @Override
+      public void resetToDefault() {
+        // the opened settings have their own way back
       }
     };
   }
@@ -303,7 +384,7 @@ final class SelectionComponentFactory {
           new JTextField(SelectionComponentUiUtils.toString(clientSetting.getValue()), 20);
       final JButton button =
           new JButtonBuilder()
-              .title("Select")
+              .title("Change")
               .actionListener(
                   () -> {
                     final String currentValue = field.getText();
@@ -338,11 +419,6 @@ final class SelectionComponentFactory {
       public void resetToDefault() {
         field.setText(SelectionComponentUiUtils.toString(clientSetting.getDefaultValue()));
       }
-
-      @Override
-      public void reset() {
-        field.setText(SelectionComponentUiUtils.toString(clientSetting.getValue()));
-      }
     };
   }
 
@@ -362,7 +438,17 @@ final class SelectionComponentFactory {
       private final JComboBox<E> comboBox = newComboBox();
 
       private JComboBox<E> newComboBox() {
-        final JComboBox<E> comboBox = new JComboBox<>();
+        final JComboBox<E> comboBox =
+            new JComboBox<>() {
+              @Serial private static final long serialVersionUID = -2398265713590231245L;
+
+              // all choices of the settings equally wide
+              @Override
+              public Dimension getPreferredSize() {
+                final Dimension size = super.getPreferredSize();
+                return new Dimension(Math.max(size.width, COMBO_BOX_WIDTH), size.height);
+              }
+            };
         comboBoxItems.forEach(comboBox::addItem);
         setComboBoxSelectedItem(comboBox, clientSetting::getValue);
         comboBox.setRenderer(
@@ -403,22 +489,17 @@ final class SelectionComponentFactory {
 
       @Override
       public void save(final SaveContext context) {
-        final @Nullable T value =
-            Optional.ofNullable(comboBox.getSelectedItem())
-                .map(comboBoxItemType::cast)
-                .map(convertComboBoxItemToSettingValue)
-                .orElse(null);
-        context.setValue(clientSetting, value);
+        // nothing is selected when the stored value is not among the items, eg a theme of an
+        // older version; closing the settings must not change it then
+        Optional.ofNullable(comboBox.getSelectedItem())
+            .map(comboBoxItemType::cast)
+            .map(convertComboBoxItemToSettingValue)
+            .ifPresent(value -> context.setValue(clientSetting, value));
       }
 
       @Override
       public void resetToDefault() {
         setComboBoxSelectedItem(comboBox, clientSetting::getDefaultValue);
-      }
-
-      @Override
-      public void reset() {
-        setComboBoxSelectedItem(comboBox, clientSetting::getValue);
       }
     };
   }
@@ -466,25 +547,22 @@ final class SelectionComponentFactory {
       @Override
       public void save(final SaveContext context) {
         // if custom selected, read a value from the input field
+        // an invalid address is reported, so the settings window says so before closing
         if (custom.isSelected()) {
           try {
             final URI uri = new URI(uriField.getText().trim());
             if (!uri.isAbsolute() || uriField.getText().isBlank()) {
-              showInvalidUriError("Not a valid URI defined", uriField.getText());
+              context.reportError(
+                  ClientSetting.diceRollerUri, "not a valid address", uriField.getText());
             } else {
               context.setValue(ClientSetting.diceRollerUri, uri);
             }
           } catch (final URISyntaxException e) {
-            showInvalidUriError(e.getMessage(), uriField.getText());
+            context.reportError(ClientSetting.diceRollerUri, e.getMessage(), uriField.getText());
           }
         } else {
           context.setValue(ClientSetting.diceRollerUri, DiceServerEditor.PRODUCTION_URI);
         }
-      }
-
-      private void showInvalidUriError(final String errorMessage, final String fieldValue) {
-        SwingComponents.showError(
-            null, "Invalid URI", "Invalid URI, " + errorMessage + ": " + fieldValue);
       }
 
       @Override
@@ -492,13 +570,6 @@ final class SelectionComponentFactory {
         production.setSelected(true);
         uriField.setText("");
         uriField.setEnabled(false);
-      }
-
-      @Override
-      public void reset() {
-        production.setSelected(
-            ClientSetting.diceRollerUri.getValueOrThrow().equals(DiceServerEditor.PRODUCTION_URI));
-        custom.setSelected(!production.isSelected());
       }
     };
   }
@@ -621,15 +692,6 @@ final class SelectionComponentFactory {
         usernameField.setText(credentialToString(usernameSetting::getDefaultValue));
         passwordField.setText(credentialToString(passwordSetting::getDefaultValue));
       }
-
-      @Override
-      public void reset() {
-        serverField.setText(hostSetting.getValue().orElse(""));
-        portSpinner.setValue(portSetting.getValue().orElse(465));
-        tlsCheckBox.setSelected(tlsSetting.getValue().orElse(true));
-        usernameField.setText(credentialToString(usernameSetting::getValue));
-        passwordField.setText(credentialToString(passwordSetting::getValue));
-      }
     };
   }
 
@@ -714,12 +776,6 @@ final class SelectionComponentFactory {
       @Override
       public void resetToDefault() {
         usernameField.setText("");
-        passwordField.setText("");
-      }
-
-      @Override
-      public void reset() {
-        usernameField.setText(usernameSetting.getValue().map(String::new).orElse(""));
         passwordField.setText("");
       }
     };

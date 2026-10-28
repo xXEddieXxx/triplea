@@ -2,6 +2,7 @@ package games.strategy.triplea.ui;
 
 import static games.strategy.engine.framework.lookandfeel.LookAndFeel.convertColorToHex;
 import static games.strategy.engine.framework.lookandfeel.LookAndFeel.getRelationshipTypeAttachmentColor;
+import static games.strategy.engine.framework.lookandfeel.LookAndFeel.getSeparatorColor;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
@@ -31,7 +32,6 @@ import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
-import javax.swing.border.EtchedBorder;
 import lombok.extern.slf4j.Slf4j;
 import org.triplea.java.ObjectUtils;
 import org.triplea.java.collections.IntegerMap;
@@ -76,17 +76,17 @@ public class BottomBar extends JPanel implements TerritoryListener, ZoomMapListe
         resourceBar, gridBuilder.weightX(0).anchor(GridBagConstraintsAnchor.WEST).build());
 
     territoryInfo.setPreferredSize(new java.awt.Dimension(0, 0));
-    territoryInfo.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+    territoryInfo.setBorder(newSectionBorder());
     centerPanel.add(
         territoryInfo,
         gridBuilder.gridX(1).weightX(1).anchor(GridBagConstraintsAnchor.CENTER).build());
 
     statusMessage.setVisible(false);
     statusMessage.setPreferredSize(new java.awt.Dimension(0, 0));
-    statusMessage.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+    statusMessage.setBorder(newSectionBorder());
 
     zoomLabel.setVisible(false);
-    zoomLabel.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+    zoomLabel.setBorder(newSectionBorder());
 
     centerPanel.add(
         statusMessage, gridBuilder.gridX(2).anchor(GridBagConstraintsAnchor.EAST).build());
@@ -104,14 +104,21 @@ public class BottomBar extends JPanel implements TerritoryListener, ZoomMapListe
     stepPanel.add(roundLabel, gridBuilder.gridX(2).build());
     if (usingDiceServer) {
       final JLabel diceServerLabel = new JLabel("Dice Server On");
-      diceServerLabel.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+      diceServerLabel.setBorder(newSectionBorder());
       stepPanel.add(diceServerLabel, gridBuilder.gridX(3).build());
     }
-    stepLabel.setBorder(new EtchedBorder(EtchedBorder.RAISED));
-    roundLabel.setBorder(new EtchedBorder(EtchedBorder.RAISED));
-    playerLabel.setBorder(new EtchedBorder(EtchedBorder.RAISED));
+    stepLabel.setBorder(newSectionBorder());
+    roundLabel.setBorder(newSectionBorder());
+    playerLabel.setBorder(newSectionBorder());
     stepLabel.setHorizontalTextPosition(SwingConstants.LEADING);
     return stepPanel;
+  }
+
+  /** A thin line left of a section of the bar, with room around its text. */
+  private static Border newSectionBorder() {
+    return BorderFactory.createCompoundBorder(
+        BorderFactory.createMatteBorder(0, 1, 0, 0, getSeparatorColor()),
+        BorderFactory.createEmptyBorder(2, 8, 2, 8));
   }
 
   private void setStatus(final String msg) {

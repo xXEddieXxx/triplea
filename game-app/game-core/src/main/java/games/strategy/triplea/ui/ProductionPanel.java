@@ -8,6 +8,7 @@ import games.strategy.engine.data.ProductionRule;
 import games.strategy.engine.data.Resource;
 import games.strategy.engine.data.ResourceCollection;
 import games.strategy.engine.data.UnitType;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.triplea.Constants;
 import games.strategy.triplea.attachments.UnitAttachment;
 import games.strategy.triplea.image.UnitImageFactory.ImageKey;
@@ -99,6 +100,7 @@ class ProductionPanel extends JPanel {
     done = new JButton(doneAction);
     done.setToolTipText(
         "Click this button or press 'ctrl+enter' to confirm purchase and close this window");
+    LookAndFeel.setPrimaryButtonStyle(done);
     SwingUtilities.invokeLater(() -> done.requestFocusInWindow());
     this.initRules(gamePlayer, initialPurchase);
     this.initLayout();

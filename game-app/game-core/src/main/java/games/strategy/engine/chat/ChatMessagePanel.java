@@ -1,5 +1,7 @@
 package games.strategy.engine.chat;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.startup.mc.messages.ModeratorPromoted;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.BorderLayout;
@@ -9,6 +11,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import javax.swing.BoundedRangeModel;
 import javax.swing.InputMap;
 import javax.swing.JButton;
@@ -55,7 +58,9 @@ public class ChatMessagePanel extends JPanel implements ChatMessageListener {
   private JButton send;
   private JButton setStatus;
   @Getter private Chat chat;
-  private final SimpleAttributeSet bold = new SimpleAttributeSet();
+  // the sender in the accent color, the time faint: compact lines that read quickly
+  private final SimpleAttributeSet sender = new SimpleAttributeSet();
+  private final SimpleAttributeSet faint = new SimpleAttributeSet();
   private final SimpleAttributeSet italic = new SimpleAttributeSet();
   private final SimpleAttributeSet normal = new SimpleAttributeSet();
   private final Action setStatusAction =
@@ -98,8 +103,11 @@ public class ChatMessagePanel extends JPanel implements ChatMessageListener {
   private void init() {
     createComponents();
     layoutComponents();
-    StyleConstants.setBold(bold, true);
+    StyleConstants.setBold(sender, true);
+    StyleConstants.setForeground(sender, LookAndFeel.getAccentColor());
+    StyleConstants.setForeground(faint, LookAndFeel.getSecondaryTextColor());
     StyleConstants.setItalic(italic, true);
+    StyleConstants.setForeground(italic, LookAndFeel.getSecondaryTextColor());
     setSize(300, 200);
   }
 
@@ -133,10 +141,13 @@ public class ChatMessagePanel extends JPanel implements ChatMessageListener {
     scrollPane = new JScrollPane(text);
     content.add(scrollPane, BorderLayout.CENTER);
     final JPanel sendPanel = new JPanel();
-    sendPanel.setLayout(new BorderLayout());
+    sendPanel.setLayout(new BorderLayout(4, 0));
+    sendPanel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
     sendPanel.add(nextMessage, BorderLayout.CENTER);
-    sendPanel.add(send, BorderLayout.WEST);
-    sendPanel.add(setStatus, BorderLayout.EAST);
+    final JPanel buttons = new JPanel(new BorderLayout());
+    buttons.add(send, BorderLayout.WEST);
+    buttons.add(setStatus, BorderLayout.EAST);
+    sendPanel.add(buttons, BorderLayout.EAST);
     content.add(sendPanel, BorderLayout.SOUTH);
   }
 
@@ -170,14 +181,16 @@ public class ChatMessagePanel extends JPanel implements ChatMessageListener {
           @Override
           public void mouseClicked(final MouseEvent e) {}
         });
+    text.setMargin(new Insets(6, 8, 6, 8));
     nextMessage = new JTextField(10);
+    nextMessage.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Message, Enter sends");
     // when enter is pressed, send the message
     setStatus = new JButton(setStatusAction);
     setStatus.setFocusable(false);
-    final Insets inset = new Insets(3, 3, 3, 3);
+    LookAndFeel.setBorderlessButtonStyle(setStatus);
     send = new JButton(SwingAction.of("Send", e -> sendMessage()));
-    send.setMargin(inset);
     send.setFocusable(false);
+    LookAndFeel.setBorderlessButtonStyle(send);
   }
 
   private void setupKeyMap() {
@@ -257,14 +270,14 @@ public class ChatMessagePanel extends JPanel implements ChatMessageListener {
 
   private void addChatMessage(final String originalMessage, final UserName from) {
     final String message = StringUtils.truncate(originalMessage, 200);
-    final String time = "(" + DateTimeUtil.getLocalizedTime() + ")";
+    final String time = DateTimeUtil.getLocalizedTime();
     final Document doc = text.getDocument();
     try {
-      doc.insertString(
-          doc.getLength(),
-          ClientSetting.showChatTimeSettings.getSetting() ? time + " " + from + ": " : from + ": ",
-          bold);
-      doc.insertString(doc.getLength(), " " + message + "\n", normal);
+      if (ClientSetting.showChatTimeSettings.getSetting()) {
+        doc.insertString(doc.getLength(), time + "  ", faint);
+      }
+      doc.insertString(doc.getLength(), from + "  ", sender);
+      doc.insertString(doc.getLength(), message + "\n", normal);
       // don't let the chat get too big
       trimLines(doc, MAX_LINES);
     } catch (final BadLocationException e) {

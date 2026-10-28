@@ -1,226 +1,183 @@
 package games.strategy.engine.lobby.client.ui;
 
+import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.framework.GameProcess;
+import games.strategy.engine.framework.GameRunner;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.startup.ui.ServerOptions;
 import games.strategy.engine.lobby.client.login.LoginResult;
+import games.strategy.engine.lobby.client.ui.LobbyGameTableModel.Column;
 import games.strategy.engine.lobby.client.ui.action.ShowPlayersAction;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import javax.swing.JButton;
+import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.stream.IntStream;
+import javax.annotation.Nullable;
+import javax.swing.AbstractListModel;
+import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JToolBar;
+import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
-import javax.swing.RowSorter;
-import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableRowSorter;
+import org.triplea.swing.JLabelBuilder;
 import org.triplea.swing.MouseListenerBuilder;
 import org.triplea.swing.SwingAction;
+import org.triplea.swing.SwingComponents;
 
+/**
+ * The games of the lobby as a list of cards: the map in bold, below it the host, the round, whether
+ * a password is needed and the comments, on the right the status and the players. Games waiting for
+ * players come first. A double click joins a game; a right click offers more, for moderators also
+ * boot and shutdown.
+ */
 class LobbyGamePanel extends JPanel {
   private static final long serialVersionUID = -2576314388949606337L;
+
+  private static final String LIST = "list";
+  private static final String EMPTY = "empty";
+
   private final JFrame parent;
-  private final JButton joinGameButton;
   private final LobbyGameTableModel gameTableModel;
   private final LobbyGameListingModel gameListingModel;
   private final LoginResult loginResult;
-  private final JTable gameTable;
+  private final GameListModel listModel;
+  private final JList<Integer> gameList;
+  private final CardLayout cards = new CardLayout();
+  private @Nullable String selectedGameId;
+  // the list empties and fills again whenever a game changes; that is no selection by the player
+  private boolean listChanging;
 
   LobbyGamePanel(
       final JFrame parent,
       final LoginResult loginResult,
       final LobbyGameTableModel lobbyGameTableModel,
       final LobbyGameListingModel gameListingModel) {
+    setLayout(cards);
     this.parent = parent;
     this.loginResult = loginResult;
     this.gameTableModel = lobbyGameTableModel;
     this.gameListingModel = gameListingModel;
 
-    final JButton hostGameButton = new JButton("Host Game");
-    joinGameButton = new JButton("Join Game");
-
-    gameTable =
-        new JTable(gameTableModel) {
-          @Override
-          // Italic font for bot rows; zebra striping for unselected rows.
-          public Component prepareRenderer(
-              final TableCellRenderer renderer, final int rowIndex, final int colIndex) {
-
-            final Component component = super.prepareRenderer(renderer, rowIndex, colIndex);
-            final var gameDescription = lobbyGameTableModel.get(convertRowIndexToModel(rowIndex));
-            component.setFont(
-                gameDescription.isBot()
-                    ? UIManager.getDefaults().getFont("Table.font").deriveFont(Font.ITALIC)
-                    : UIManager.getDefaults().getFont("Table.font"));
-            if (!isRowSelected(rowIndex)) {
-              component.setBackground(
-                  rowIndex % 2 == 0
-                      ? getBackground()
-                      : UIManager.getColor("Table.alternateRowColor"));
-            }
-            return component;
-          }
-        };
-    gameTable.setRowHeight(28);
-    gameTable.setShowGrid(false);
-    gameTable.setIntercellSpacing(new Dimension(0, 0));
-    gameTable
-        .getSelectionModel()
-        .addListSelectionListener(
-            e -> {
-              final boolean selected = gameTable.getSelectedRow() >= 0;
-              joinGameButton.setEnabled(selected);
-            });
-    gameTable.addMouseListener(
+    listModel = new GameListModel(lobbyGameTableModel);
+    gameList = new JList<>(listModel);
+    gameList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+    gameList.setCellRenderer(new GameCardRenderer());
+    gameList.addMouseListener(
         new MouseListenerBuilder()
             .mouseClicked(this::mouseClicked)
             .mousePressed(this::mousePressed)
-            .mouseReleased(this::mouseOnGamesList)
+            .mouseReleased(this::showMenuOnRightClick)
             .build());
 
-    final TableRowSorter<LobbyGameTableModel> tableSorter = new TableRowSorter<>(gameTableModel);
-    // by default, sort by host
-    final int hostColumn = gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Host);
-    tableSorter.setSortKeys(List.of(new RowSorter.SortKey(hostColumn, SortOrder.DESCENDING)));
-    gameTable.setRowSorter(tableSorter);
-
-    // only allow one row to be selected
-    gameTable.setColumnSelectionAllowed(false);
-    gameTable.setCellSelectionEnabled(false);
-    gameTable.setRowSelectionAllowed(true);
-    gameTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    // these should add up to 700 at most
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Players))
-        .setPreferredWidth(42);
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Round))
-        .setPreferredWidth(40);
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.P))
-        .setPreferredWidth(12);
-    if (loginResult.isModerator()) {
-      gameTable
-          .getColumnModel()
-          .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Started))
-          .setPreferredWidth(55);
-    }
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Status))
-        .setPreferredWidth(112);
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Name))
-        .setPreferredWidth(156);
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Comments))
-        .setPreferredWidth(160);
-    gameTable
-        .getColumnModel()
-        .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.Host))
-        .setPreferredWidth(67);
-
-    // Render the password column as a centred lock symbol instead of a raw "*".
-    final var passwordColumn =
-        gameTable
-            .getColumnModel()
-            .getColumn(gameTableModel.getColumnIndex(LobbyGameTableModel.Column.P));
-    passwordColumn.setHeaderValue("🔒");
-    passwordColumn.setCellRenderer(
-        new DefaultTableCellRenderer() {
-          @Override
-          public Component getTableCellRendererComponent(
-              final JTable table,
-              final Object value,
-              final boolean isSelected,
-              final boolean hasFocus,
-              final int row,
-              final int column) {
-            final JLabel label =
-                (JLabel)
-                    super.getTableCellRendererComponent(
-                        table, value, isSelected, hasFocus, row, column);
-            label.setText("*".equals(value) ? "🔒" : "");
-            label.setHorizontalAlignment(SwingConstants.CENTER);
-            return label;
+    final JLabel empty =
+        new JLabel(
+            "<html><center>No games right now.<br>Host one, players in the lobby can join it."
+                + "</center></html>",
+            SwingConstants.CENTER);
+    empty.setForeground(LookAndFeel.getSecondaryTextColor());
+    add(SwingComponents.newJScrollPane(gameList), LIST);
+    add(empty, EMPTY);
+    showListOrEmpty();
+    gameList.addListSelectionListener(
+        e -> {
+          if (!listChanging) {
+            selectedGameId =
+                gameList.getSelectedIndex() >= 0
+                    ? gameTableModel.getGameIdForRow(selectedRow())
+                    : null;
           }
         });
+    lobbyGameTableModel.addTableModelListener(e -> gamesChanged());
+  }
 
-    final JScrollPane scroll = new JScrollPane(gameTable);
-    setLayout(new BorderLayout());
-    add(scroll, BorderLayout.CENTER);
-    final JToolBar toolBar = new JToolBar();
-    toolBar.add(hostGameButton);
-    toolBar.add(joinGameButton);
-    toolBar.setFloatable(false);
-    add(toolBar, BorderLayout.SOUTH);
+  /** The games change often; the selected one stays selected wherever it moved. */
+  @VisibleForTesting
+  void gamesChanged() {
+    listChanging = true;
+    try {
+      listModel.refresh();
+      showListOrEmpty();
+      IntStream.range(0, listModel.getSize())
+          .filter(
+              index ->
+                  gameTableModel
+                      .getGameIdForRow(listModel.getElementAt(index))
+                      .equals(selectedGameId))
+          .findFirst()
+          .ifPresentOrElse(
+              gameList::setSelectedIndex,
+              () -> {
+                // the selected game is gone
+                gameList.clearSelection();
+                selectedGameId = null;
+              });
+    } finally {
+      listChanging = false;
+    }
+  }
 
-    hostGameButton.addActionListener(e -> hostGame());
-    joinGameButton.addActionListener(e -> joinGame());
+  @VisibleForTesting
+  JList<Integer> getGameList() {
+    return gameList;
+  }
+
+  private void showListOrEmpty() {
+    cards.show(this, listModel.getSize() == 0 ? EMPTY : LIST);
+  }
+
+  /** Calls the listener with whether a game is selected, whenever that changes. */
+  void addSelectionListener(final Consumer<Boolean> gameSelected) {
+    gameList.addListSelectionListener(e -> gameSelected.accept(gameList.getSelectedIndex() >= 0));
   }
 
   private void mouseClicked(final MouseEvent mouseEvent) {
     if (mouseEvent.getClickCount() == 2) {
       joinGame();
     }
-    mouseOnGamesList(mouseEvent);
+    showMenuOnRightClick(mouseEvent);
   }
 
   private void mousePressed(final MouseEvent mouseEvent) {
-    // right clicks do not 'select' a row by default. so force a row selection at the mouse
-    // point.
-    final int r = gameTable.rowAtPoint(mouseEvent.getPoint());
-    if (r >= 0 && r < gameTable.getRowCount()) {
-      gameTable.setRowSelectionInterval(r, r);
+    // right clicks do not select a game by default, so select the game at the mouse
+    final int index = gameList.locationToIndex(mouseEvent.getPoint());
+    if (index >= 0 && gameList.getCellBounds(index, index).contains(mouseEvent.getPoint())) {
+      gameList.setSelectedIndex(index);
     } else {
-      gameTable.clearSelection();
+      gameList.clearSelection();
     }
-    mouseOnGamesList(mouseEvent);
+    showMenuOnRightClick(mouseEvent);
   }
 
-  private void mouseOnGamesList(final MouseEvent mouseEvent) {
-    if (!mouseEvent.isPopupTrigger()) {
+  private void showMenuOnRightClick(final MouseEvent mouseEvent) {
+    if (!mouseEvent.isPopupTrigger() || !SwingUtilities.isRightMouseButton(mouseEvent)) {
       return;
     }
-    if (!SwingUtilities.isRightMouseButton(mouseEvent)) {
-      return;
-    }
-    final int selectedIndex = gameTable.getSelectedRow();
-    if (selectedIndex == -1) {
+    if (gameList.getSelectedIndex() == -1) {
       return;
     }
 
     final JPopupMenu menu = new JPopupMenu();
-
     List.of(
             SwingAction.of("Join Game", this::joinGame),
             SwingAction.of("Host Game", this::hostGame),
             ShowPlayersAction.builder()
                 .parentWindow(parent)
-                .gameIdSelection(
-                    () ->
-                        gameTableModel.getGameListingForRow(
-                            gameTable.convertRowIndexToModel(gameTable.getSelectedRow())))
+                .gameIdSelection(() -> gameTableModel.getGameListingForRow(selectedRow()))
                 .playerToLobbyConnection(gameListingModel.getConnection())
                 .build()
                 .buildSwingAction())
@@ -233,23 +190,24 @@ class LobbyGamePanel extends JPanel {
               SwingAction.of("Shutdown", e -> shutdownGame()))
           .forEach(menu::add);
     }
-
-    if (menu.getComponentCount() > 0) {
-      menu.show(gameTable, mouseEvent.getX(), mouseEvent.getY());
-    }
+    menu.show(gameList, mouseEvent.getX(), mouseEvent.getY());
   }
 
-  private void joinGame() {
-    final int selectedIndex = gameTable.getSelectedRow();
-    if (selectedIndex == -1) {
+  /** The row of the selected game in the table model. */
+  private int selectedRow() {
+    return gameList.getSelectedValue();
+  }
+
+  /** Joins the selected game, in a game window of its own; the lobby stays open. */
+  void joinGame() {
+    if (gameList.getSelectedIndex() == -1) {
       return;
     }
-    // we sort the table, so get the correct index
-    final var description = gameTableModel.get(gameTable.convertRowIndexToModel(selectedIndex));
-    GameProcess.joinGame(description, loginResult.getUsername());
+    GameProcess.joinGame(gameTableModel.get(selectedRow()), loginResult.getUsername());
   }
 
-  private void hostGame() {
+  /** Hosts a game, in a game window of its own; the lobby stays open. */
+  void hostGame() {
     final ServerOptions options =
         new ServerOptions(
             JOptionPane.getFrameForComponent(this), loginResult.getUsername(), 3300, true);
@@ -268,10 +226,11 @@ class LobbyGamePanel extends JPanel {
   }
 
   private void bootGame() {
-    final int selectedIndex = gameTable.getSelectedRow();
-    if (selectedIndex == -1) {
+    if (gameList.getSelectedIndex() == -1) {
       return;
     }
+    // read before asking: the game can leave the lobby while the question is open
+    final String gameId = gameTableModel.getGameIdForRow(selectedRow());
     final int result =
         JOptionPane.showConfirmDialog(
             null,
@@ -281,19 +240,17 @@ class LobbyGamePanel extends JPanel {
     if (result != JOptionPane.OK_OPTION) {
       return;
     }
-
-    final String gameId =
-        gameTableModel.getGameIdForRow(gameTable.convertRowIndexToModel(selectedIndex));
     gameListingModel.bootGame(gameId);
     JOptionPane.showMessageDialog(
         null, "The game you selected has been disconnected from the lobby.");
   }
 
   private void shutdownGame() {
-    final int selectedIndex = gameTable.getSelectedRow();
-    if (selectedIndex == -1) {
+    if (gameList.getSelectedIndex() == -1) {
       return;
     }
+    // read before asking: the game can leave the lobby while the question is open
+    final String gameId = gameTableModel.getGameIdForRow(selectedRow());
     final int result =
         JOptionPane.showConfirmDialog(
             null,
@@ -303,10 +260,143 @@ class LobbyGamePanel extends JPanel {
     if (result != JOptionPane.OK_OPTION) {
       return;
     }
-
-    final String gameId =
-        gameTableModel.getGameIdForRow(gameTable.convertRowIndexToModel(selectedIndex));
     gameListingModel.sendShutdownRequest(gameId);
     JOptionPane.showMessageDialog(parent, "The game you selected was sent a shutdown signal");
+  }
+
+  /** A game waiting for players: its status is "Available" or "Waiting For Players". */
+  @VisibleForTesting
+  static boolean isOpen(final String status) {
+    final String lowerCase = status.toLowerCase(Locale.ROOT);
+    return lowerCase.contains("available") || lowerCase.contains("waiting");
+  }
+
+  /**
+   * The rows of the table model as list entries: open games first, then by host, so that a game
+   * keeps its place when others change.
+   */
+  @VisibleForTesting
+  static final class GameListModel extends AbstractListModel<Integer> {
+    private static final long serialVersionUID = 2340521863425871215L;
+
+    private final transient LobbyGameTableModel tableModel;
+    private final List<Integer> sortedRows = new ArrayList<>();
+
+    GameListModel(final LobbyGameTableModel tableModel) {
+      this.tableModel = tableModel;
+      sort();
+    }
+
+    /** Reads the games of the table model again. */
+    void refresh() {
+      final int oldSize = sortedRows.size();
+      sort();
+      if (oldSize > 0) {
+        fireIntervalRemoved(this, 0, oldSize - 1);
+      }
+      if (!sortedRows.isEmpty()) {
+        fireIntervalAdded(this, 0, sortedRows.size() - 1);
+      }
+    }
+
+    private void sort() {
+      sortedRows.clear();
+      IntStream.range(0, tableModel.getRowCount())
+          .boxed()
+          .sorted(
+              Comparator.comparing((Integer row) -> !isOpen(text(row, Column.Status)))
+                  .thenComparing(row -> text(row, Column.Host).toLowerCase(Locale.ROOT)))
+          .forEach(sortedRows::add);
+    }
+
+    String text(final int row, final Column column) {
+      final Object value = tableModel.getValueAt(row, tableModel.getColumnIndex(column));
+      return value == null ? "" : String.valueOf(value);
+    }
+
+    @Override
+    public int getSize() {
+      return sortedRows.size();
+    }
+
+    @Override
+    public Integer getElementAt(final int index) {
+      return sortedRows.get(index);
+    }
+  }
+
+  /** A game card: map, host · round · password, comments; status and players on the right. */
+  private final class GameCardRenderer implements ListCellRenderer<Integer> {
+    private final JLabel title = new JLabelBuilder().bold().adjustFontSize(2).build();
+    private final JLabel details = new JLabel();
+    private final JLabel comments = new JLabel();
+    private final JLabel status = new JLabelBuilder().bold().build();
+    private final JLabel players = new JLabel();
+    private final JPanel card = new JPanel(new BorderLayout(16, 0));
+
+    GameCardRenderer() {
+      final JPanel texts = new JPanel(new BorderLayout(0, 2));
+      texts.setOpaque(false);
+      texts.add(title, BorderLayout.NORTH);
+      texts.add(details, BorderLayout.CENTER);
+      texts.add(comments, BorderLayout.SOUTH);
+      final JPanel right = new JPanel(new BorderLayout(0, 2));
+      right.setOpaque(false);
+      status.setHorizontalAlignment(SwingConstants.TRAILING);
+      players.setHorizontalAlignment(SwingConstants.TRAILING);
+      right.add(status, BorderLayout.NORTH);
+      right.add(players, BorderLayout.CENTER);
+      card.add(texts, BorderLayout.CENTER);
+      card.add(right, BorderLayout.EAST);
+    }
+
+    @Override
+    public Component getListCellRendererComponent(
+        final JList<? extends Integer> list,
+        final Integer row,
+        final int index,
+        final boolean isSelected,
+        final boolean cellHasFocus) {
+      final boolean passworded = "*".equals(listModel.text(row, Column.P));
+      // like GameDescription.isBot, from the shown values
+      final boolean bot =
+          listModel.text(row, Column.Host).startsWith(GameRunner.BOT_GAME_HOST_NAME_PREFIX)
+              && GameRunner.BOT_GAME_HOST_COMMENT.equals(listModel.text(row, Column.Comments));
+      title.setText(listModel.text(row, Column.Name));
+      final String round = listModel.text(row, Column.Round);
+      // a word, not a lock symbol: not every font of the systems has one
+      details.setText(
+          "Hosted by "
+              + listModel.text(row, Column.Host)
+              + ("-".equals(round) ? "" : "  ·  Round " + round)
+              + (passworded ? "  ·  Password" : "")
+              // moderators see when a game started, the table model has that column only for them
+              + (loginResult.isModerator()
+                  ? "  ·  Started " + listModel.text(row, Column.Started)
+                  : ""));
+      final String comment = listModel.text(row, Column.Comments);
+      comments.setText(comment);
+      comments.setVisible(!comment.isBlank());
+      final String statusText = listModel.text(row, Column.Status);
+      status.setText(statusText);
+      final String playerCount = listModel.text(row, Column.Players);
+      players.setText(playerCount + ("1".equals(playerCount) ? " player" : " players"));
+
+      final Color secondary = LookAndFeel.getSecondaryTextColor();
+      final Color foreground = isSelected ? list.getSelectionForeground() : list.getForeground();
+      title.setForeground(foreground);
+      details.setForeground(isSelected ? foreground : secondary);
+      comments.setForeground(isSelected ? foreground : secondary);
+      comments.setFont(comments.getFont().deriveFont(bot ? Font.ITALIC : Font.PLAIN));
+      players.setForeground(isSelected ? foreground : secondary);
+      status.setForeground(
+          isSelected ? foreground : isOpen(statusText) ? LookAndFeel.getAccentColor() : secondary);
+      card.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+      card.setBorder(
+          BorderFactory.createCompoundBorder(
+              BorderFactory.createMatteBorder(0, 0, 1, 0, LookAndFeel.getSeparatorColor()),
+              BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+      return card;
+    }
   }
 }

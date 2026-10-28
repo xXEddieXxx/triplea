@@ -70,11 +70,6 @@ public class MapPropertyWrapper<T> extends AbstractEditableProperty<T> {
   }
 
   @Override
-  public int getRowsNeeded() {
-    return property.getRowsNeeded();
-  }
-
-  @Override
   public T getValue() {
     return property.getValue();
   }

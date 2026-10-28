@@ -10,6 +10,7 @@ import java.util.Observable;
 import java.util.Observer;
 import java.util.Optional;
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import org.triplea.game.startup.SetupModel;
 import org.triplea.swing.SwingAction;
 
@@ -21,7 +22,8 @@ public class LocalSetupPanel extends SetupPanel implements Observer {
 
   public LocalSetupPanel(final GameSelectorModel model) {
     gameSelectorModel = model;
-    layoutPlayerComponents(this, playerTypes, gameSelectorModel.getGameData());
+    setBorder(BorderFactory.createEmptyBorder(24, 32, 16, 32));
+    layoutPlayerComponentsWithQuickSetup(this, playerTypes, gameSelectorModel.getGameData());
     setupListeners();
   }
 
@@ -37,6 +39,11 @@ public class LocalSetupPanel extends SetupPanel implements Observer {
   @Override
   public boolean isCancelButtonVisible() {
     return true;
+  }
+
+  @Override
+  public String getScreenTitle() {
+    return getWayToPlayTitle("StartLocalGame");
   }
 
   @Override
@@ -61,7 +68,9 @@ public class LocalSetupPanel extends SetupPanel implements Observer {
   @Override
   public void update(final Observable o, final Object arg) {
     SwingAction.invokeNowOrLater(
-        () -> layoutPlayerComponents(this, playerTypes, gameSelectorModel.getGameData()));
+        () ->
+            layoutPlayerComponentsWithQuickSetup(
+                this, playerTypes, gameSelectorModel.getGameData()));
   }
 
   @Override

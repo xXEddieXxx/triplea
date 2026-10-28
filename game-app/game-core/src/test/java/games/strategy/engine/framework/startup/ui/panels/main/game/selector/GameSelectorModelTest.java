@@ -41,7 +41,7 @@ class GameSelectorModelTest extends AbstractClientSettingTestCase {
   }
 
   private static void assertHasEmptyDisplayData(final GameSelectorModel objectToCheck) {
-    assertThat(objectToCheck.getFileName()).isEqualTo("-");
+    assertThat(objectToCheck.getSaveGameFileName()).isEmpty();
     assertThat(objectToCheck.getGameName()).isEqualTo("-");
     assertThat(objectToCheck.getGameRound()).isEqualTo("-");
   }

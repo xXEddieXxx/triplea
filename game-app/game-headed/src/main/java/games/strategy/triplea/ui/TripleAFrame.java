@@ -181,6 +181,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
   @Getter private final IGame game;
   @Getter private final MapPanel mapPanel;
   private final ImageScrollerSmallView smallView;
+  private final TurnGuidePanel turnGuidePanel;
 
   private final ActionButtonsPanel actionButtonsPanel;
   private final JPanel gameMainPanel = new JPanel();
@@ -378,6 +379,9 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     rightHandSidePanel.addFocusListener(focusToMapPanelFocusListener);
     smallView.addFocusListener(focusToMapPanelFocusListener);
     tabsPanel.addFocusListener(focusToMapPanelFocusListener);
+    // the turn across the top, over map and side panel
+    turnGuidePanel = new TurnGuidePanel(uiContext);
+    gameMainPanel.add(turnGuidePanel, BorderLayout.NORTH);
     rightHandSidePanel.add(smallView, BorderLayout.NORTH);
     tabsPanel.setBorder(null);
     rightHandSidePanel.add(tabsPanel, BorderLayout.CENTER);
@@ -433,9 +437,11 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           }
         });
 
+    // as wide as the small map, but wide enough for readable tabs and lists on large screens
+    final int preferredRightHandSidePanelWidth = 360;
     rightHandSidePanel.setPreferredSize(
         new Dimension(
-            (int) smallView.getPreferredSize().getWidth(),
+            Math.max(preferredRightHandSidePanelWidth, smallView.getPreferredSize().width),
             (int) mapPanel.getPreferredSize().getHeight()));
     // The right-hand side panel's minimum width needs to be at least as wide as the smallMap, but
     // not smaller than 248 px or there is not enough room for the Cancel/Done/Undo All buttons
@@ -672,6 +678,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
       return;
     }
     final int round;
+    final String phaseHint;
     final String stepDisplayName;
     final GamePlayer player;
     try (GameData.Unlocker ignored = data.acquireReadLock()) {
@@ -680,11 +687,13 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
       if (step == null) {
         return;
       }
+      phaseHint = PhaseHints.forStep(step).orElse("");
       stepDisplayName = step.getDisplayName();
       player = step.getPlayerId();
     }
 
     uiContext.setCurrentPlayer(player);
+    turnGuidePanel.showStep(round, phaseHint, stepDisplayName, player);
 
     SwingUtilities.invokeLater(
         () -> {
@@ -731,6 +740,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           actionButtonsPanel.getCurrent().ifPresent(actionPanel -> actionPanel.setActive(true));
           gameMainPanel.removeAll();
           gameMainPanel.setLayout(new BorderLayout());
+          gameMainPanel.add(turnGuidePanel, BorderLayout.NORTH);
           gameMainPanel.add(gameCenterPanel, BorderLayout.CENTER);
           gameMainPanel.add(bottomBar, BorderLayout.SOUTH);
           getContentPane().removeAll();

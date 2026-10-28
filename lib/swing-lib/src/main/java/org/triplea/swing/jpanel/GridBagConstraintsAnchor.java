@@ -25,7 +25,7 @@ import lombok.Getter;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public enum GridBagConstraintsAnchor {
   CENTER(GridBagConstraints.CENTER),
-  NORTH(GridBagConstraints.NONE),
+  NORTH(GridBagConstraints.NORTH),
   NORTHEAST(GridBagConstraints.NORTHEAST),
   EAST(GridBagConstraints.EAST),
   SOUTHEAST(GridBagConstraints.SOUTHEAST),

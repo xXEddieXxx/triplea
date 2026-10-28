@@ -11,7 +11,7 @@ import org.triplea.http.client.web.socket.client.connections.PlayerToLobbyConnec
 
 /**
  * Central domain/network model for a lobby session. Has no Swing dependency. Owns the network
- * connection and all domain objects derived from it; {@link LobbyFrame} receives this and owns only
+ * connection and all domain objects derived from it; {@link LobbyPanel} receives this and owns only
  * layout.
  */
 public class LobbyModel {

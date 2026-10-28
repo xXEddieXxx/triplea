@@ -10,10 +10,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.Runnables;
+import games.strategy.triplea.settings.SaveFunction.SaveResult;
 import java.util.List;
 import java.util.function.Consumer;
 import javax.swing.JComponent;
 import javax.swing.JOptionPane;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +34,7 @@ final class SaveFunctionTest {
     void messageOnValidIsInformation() {
       givenValidationResults(true, true);
 
-      final SaveFunction.SaveResult result =
+      final SaveResult result =
           SaveFunction.saveSettings(
               List.of(mockSelectionComponent, mockSelectionComponent2), Runnables.doNothing());
 
@@ -81,7 +83,7 @@ final class SaveFunctionTest {
     void messageOnNotValidResultIsWarning() {
       givenValidationResults(false, false);
 
-      final SaveFunction.SaveResult result =
+      final SaveResult result =
           SaveFunction.saveSettings(
               List.of(mockSelectionComponent, mockSelectionComponent2), Runnables.doNothing());
 
@@ -93,7 +95,7 @@ final class SaveFunctionTest {
     void messageOnMixedResultIsWarning() {
       givenValidationResults(true, false);
 
-      final SaveFunction.SaveResult result =
+      final SaveResult result =
           SaveFunction.saveSettings(
               List.of(mockSelectionComponent, mockSelectionComponent2), Runnables.doNothing());
 
@@ -101,6 +103,32 @@ final class SaveFunctionTest {
       assertThat(result.dialogType)
           .as("At least one value was not updated, should be warning message type")
           .isEqualTo(JOptionPane.WARNING_MESSAGE);
+    }
+
+    @DisplayName("Saving valid values reports no failures, so the settings window can close")
+    @Test
+    void validValuesHaveNoFailures() {
+      givenValidationResults(true, true);
+
+      final SaveResult result =
+          SaveFunction.saveSettings(
+              List.of(mockSelectionComponent, mockSelectionComponent2), Runnables.doNothing());
+
+      assertThat(result.hasFailures()).as("both values were saved").isFalse();
+    }
+
+    @DisplayName("A value that could not be saved is a failure, also when others were saved")
+    @Test
+    void invalidValueIsFailure() {
+      givenValidationResults(true, false);
+
+      final SaveResult result =
+          SaveFunction.saveSettings(
+              List.of(mockSelectionComponent, mockSelectionComponent2), Runnables.doNothing());
+
+      assertThat(result.hasFailures())
+          .as("the settings window shows the invalid value before it closes")
+          .isTrue();
     }
 
     @Test

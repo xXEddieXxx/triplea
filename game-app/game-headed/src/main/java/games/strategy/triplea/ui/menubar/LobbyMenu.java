@@ -1,15 +1,13 @@
 package games.strategy.triplea.ui.menubar;
 
-import games.strategy.engine.framework.system.SystemProperties;
 import games.strategy.engine.lobby.client.login.ChangeEmailPanel;
 import games.strategy.engine.lobby.client.login.ChangePasswordPanel;
 import games.strategy.engine.lobby.client.login.LoginResult;
-import games.strategy.engine.lobby.client.ui.LobbyFrame;
 import games.strategy.engine.lobby.moderator.toolbox.ToolBoxWindow;
 import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.ClientSetting;
-import games.strategy.triplea.ui.MacOsIntegration;
-import javax.swing.JMenuBar;
+import javax.swing.JFrame;
+import javax.swing.JPopupMenu;
 import org.triplea.domain.data.SystemIdLoader;
 import org.triplea.http.client.ClientIdentifiers;
 import org.triplea.http.client.maps.admin.MapTagAdminClient;
@@ -21,27 +19,20 @@ import org.triplea.swing.JMenuItemCheckBoxBuilder;
 import org.triplea.swing.SwingComponents;
 import org.triplea.swing.key.binding.KeyCode;
 
-/** The lobby client menu bar. */
-public final class LobbyMenu extends JMenuBar {
-  private static final long serialVersionUID = 4980621864542042057L;
+/**
+ * The menu of the lobby, behind a button in its header: the account (not for guests), the moderator
+ * toolbox (for moderators), the chat sounds and times, and help.
+ */
+public final class LobbyMenu {
+  private LobbyMenu() {}
 
-  private final LobbyFrame lobbyFrame;
-
-  public LobbyMenu(
-      LobbyFrame frame, LoginResult loginResult, PlayerToLobbyConnection playerToLobbyConnection) {
-    lobbyFrame = frame;
-    // file only has one value, and on mac it is in the apple menu
-    if (!SystemProperties.isMac()) {
-      add(
-          new JMenuBuilder("File", KeyCode.F)
-              .addMenuItem("Exit", KeyCode.X, lobbyFrame::shutdown)
-              .build());
-    } else {
-      MacOsIntegration.setQuitHandler(lobbyFrame);
-    }
-
+  public static JPopupMenu newPopupMenu(
+      final JFrame frame,
+      final LoginResult loginResult,
+      final PlayerToLobbyConnection playerToLobbyConnection) {
+    final JPopupMenu menu = new JPopupMenu();
     if (!loginResult.isAnonymousLogin()) {
-      add(
+      menu.add(
           new JMenuBuilder("Account", KeyCode.A)
               .addMenuItem(
                   "Update Email",
@@ -59,19 +50,19 @@ public final class LobbyMenu extends JMenuBar {
     }
 
     if (loginResult.isModerator()) {
-      ClientIdentifiers clientIdentifiers =
+      final ClientIdentifiers clientIdentifiers =
           ClientIdentifiers.builder()
               .systemId(SystemIdLoader.load().getValue())
               .apiKey(loginResult.getApiKey().getValue())
               .build();
-      add(
+      menu.add(
           new JMenuBuilder("Admin", KeyCode.M)
               .addMenuItem(
                   "Open Toolbox",
                   KeyCode.T,
                   () ->
                       ToolBoxWindow.showWindow(
-                          lobbyFrame,
+                          frame,
                           playerToLobbyConnection.getHttpModeratorToolboxClient(),
                           MapsClient.newClient(
                               ClientSetting.lobbyUri.getValueOrThrow(), clientIdentifiers),
@@ -80,8 +71,8 @@ public final class LobbyMenu extends JMenuBar {
               .build());
     }
 
-    add(
-        new JMenuBuilder("Settings", KeyCode.S)
+    menu.add(
+        new JMenuBuilder("Sound and chat", KeyCode.S)
             .addMenuItem(SoundOptions.buildGlobalSoundSwitchMenuItem())
             .addMenuItem(SoundOptions.buildSoundOptionsMenuItem())
             .addMenuItem(
@@ -90,26 +81,23 @@ public final class LobbyMenu extends JMenuBar {
                     .build())
             .build());
 
-    add(
+    menu.add(
         new JMenuBuilder("Help", KeyCode.H)
             .addMenuItem(
                 "User Guide",
                 KeyCode.U,
-                () ->
-                    SwingComponents.newOpenUrlConfirmationDialog(
-                        lobbyFrame, UrlConstants.USER_GUIDE))
+                () -> SwingComponents.newOpenUrlConfirmationDialog(frame, UrlConstants.USER_GUIDE))
             .addMenuItem(
                 "View Forums",
                 KeyCode.F,
                 () ->
-                    SwingComponents.newOpenUrlConfirmationDialog(
-                        lobbyFrame, UrlConstants.TRIPLEA_FORUM))
+                    SwingComponents.newOpenUrlConfirmationDialog(frame, UrlConstants.TRIPLEA_FORUM))
             .addMenuItem(
                 "Send Bug Report",
                 KeyCode.B,
                 () ->
-                    SwingComponents.newOpenUrlConfirmationDialog(
-                        lobbyFrame, UrlConstants.GITHUB_ISSUES))
+                    SwingComponents.newOpenUrlConfirmationDialog(frame, UrlConstants.GITHUB_ISSUES))
             .build());
+    return menu;
   }
 }

@@ -67,11 +67,6 @@ public class MapProperty<V> extends AbstractEditableProperty<Map<String, V>> {
   }
 
   @Override
-  public int getRowsNeeded() {
-    return Math.max(1, properties.size());
-  }
-
-  @Override
   public Map<String, V> getValue() {
     return map;
   }

@@ -315,7 +315,7 @@ final class ViewMenu {
               final PropertiesUi pui = new PropertiesUi(properties, true);
               final JPanel ui = new JPanel();
               ui.setLayout(new BorderLayout());
-              ui.add(pui, BorderLayout.CENTER);
+              ui.add(PropertiesUi.newScrollableView(pui), BorderLayout.CENTER);
               ui.add(
                   new JLabel(
                       "<html>Change the font and color of 'text' (not pictures) on the map. "

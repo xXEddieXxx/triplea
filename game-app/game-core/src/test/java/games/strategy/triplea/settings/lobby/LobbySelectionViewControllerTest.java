@@ -6,7 +6,6 @@ import static org.triplea.ui.events.queue.test.support.EventQueueAssertions.cont
 import games.strategy.triplea.settings.AbstractClientSettingTestCase;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.settings.lobby.LobbySelectionViewData.LobbyChoice;
-import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -85,66 +84,6 @@ class LobbySelectionViewControllerTest extends AbstractClientSettingTestCase {
                     .selectedRadioButton(defaultLobbyChoice)
                     .uriFieldEnabled(!defaultLobbyChoice.isReadOnly())
                     .uriFieldValue(defaultLobbyChoice.getUri())
-                    .build()));
-  }
-
-  /**
-   * User has saved an 'other' lobby URI. The response to a reset should be to revert back to the
-   * 'other' setting that was saved.
-   */
-  @Test
-  void reset_CaseOtherValueSaved() {
-    // by setting 'ClientSetting.lobbyUri' to a custom value,
-    // we are setting the Lobby Choice value to 'OTHER'
-    ClientSetting.lobbyUri.setValueAndFlush(URI.create("http://127.0.0.1:3000"));
-
-    final LobbySelectionViewData inputData =
-        LobbySelectionViewData.builder()
-            .selectedRadioButton(LobbyChoice.PROD)
-            .uriFieldEnabled(false)
-            .uriFieldValue(LobbyChoice.PROD.getUri())
-            .build();
-
-    lobbySelectionViewController.handleEvent(LobbySelectionView.Events.RESET, inputData);
-
-    assertThat(eventQueueTestSupport.popFirstControllerEvent())
-        .is(
-            controllerEventIs(
-                LobbySelectionViewController.Events.UPDATE_UI_DATA,
-                inputData,
-                LobbySelectionViewData.builder()
-                    .selectedRadioButton(LobbyChoice.OTHER)
-                    .uriFieldEnabled(true)
-                    .uriFieldValue(URI.create("http://127.0.0.1:3000").toString())
-                    .build()));
-  }
-
-  /**
-   * User has saved 'local' as lobby selection. The response should update UI to the 'local' lobby
-   * preset.
-   */
-  @Test
-  void reset_CaseLocalLobbySaved() {
-    ClientSetting.lobbyUri.setValueAndFlush(URI.create(LobbyChoice.LOCAL.getUri()));
-
-    final LobbySelectionViewData inputData =
-        LobbySelectionViewData.builder()
-            .selectedRadioButton(LobbyChoice.OTHER)
-            .uriFieldEnabled(true)
-            .uriFieldValue("http://127.0.0.1")
-            .build();
-
-    lobbySelectionViewController.handleEvent(LobbySelectionView.Events.RESET, inputData);
-
-    assertThat(eventQueueTestSupport.popFirstControllerEvent())
-        .is(
-            controllerEventIs(
-                LobbySelectionViewController.Events.UPDATE_UI_DATA,
-                inputData,
-                LobbySelectionViewData.builder()
-                    .selectedRadioButton(LobbyChoice.LOCAL)
-                    .uriFieldEnabled(false)
-                    .uriFieldValue(LobbyChoice.LOCAL.getUri())
                     .build()));
   }
 }

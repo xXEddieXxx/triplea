@@ -31,7 +31,7 @@ The core game engine module. Contains the generic turn-based strategy engine fra
 - **`formatter/`** — Display formatting for game data
 - **`odds/calculator/`** — Battle odds simulation
 - **`Properties.java`** — Game property constants (single file, not a package)
-- **`settings/`** — Client settings management
+- **`settings/`** — Client settings management; `SettingsWindow` shows a `SettingsPage` below a `BackBar` (the main window's, back to the main menu, or in the dialog its own, back to the game; both with the note that leaving saves), on the left a search field and one button per `SettingType` (Gameplay, Graphics, Audio, Controls, Online & multiplayer, Advanced), on the right the chosen section's settings under their `SettingGroup` headings, or the settings matching the search. Each setting, bound in `ClientSettingSwingUiBinding`, is a row with title and description on the left and its control (switch, slider, combo box, ...) on the right. The settings are saved when they are left; they open as a page of the main window while that is showing, otherwise as a modal dialog
 - **`ui/`** — Swing UI components for gameplay (see [UI Layer](#ui-layer) below for details)
 - **`util/`** — Various utility classes
 
@@ -177,7 +177,7 @@ Each concrete attachment provides a static `get()` method:
 
 ## Test Fixtures
 
-This module exposes **test fixtures** used by other modules (notably `ai` and `smoke-testing`). Key test support:
+This module exposes **test fixtures** used by other modules (notably `ai`, `game-headed` and `smoke-testing`). Key test support:
 - `TestMapGameData` enum — loads predefined test maps
 - `TestMapGameDataLoader` — utility to load map XML for tests
 - Test map XMLs in `src/testFixtures/resources/`
@@ -340,7 +340,7 @@ The `startup/` package manages everything from game selection through network se
 - **`PlayerTypes`** — Enum of player types (Human, various AIs).
 - **`ClientOptions`** / **`ServerOptions`** — Game options dialogs for client/server.
 - **`InGameLobbyWatcher`** / **`InGameLobbyWatcherWrapper`** — Posts game status to the lobby while a game is running.
-- **`panels/main/game/selector/`** — Game file selection UI: `GameSelectorPanel`, `GameSelectorModel`, `GameFileSelector`.
+- **`panels/main/game/selector/`** — Game file selection UI: `GameSelectorPanel`, `GameSelectorModel`, `GameFileSelector`, `SavedGameLoader` (loads a save behind a wait dialog and shows why one failed).
 - **`FileBackedGamePropertiesCache`** / **`IGamePropertiesCache`** — Persists game property selections.
 
 #### PBEM/PBF UI (`startup/ui/posted/`)
@@ -360,22 +360,21 @@ The `map/` package handles map installation, discovery, and downloading.
 
 #### Installed Maps
 
-- **`InstalledMap`** — Represents one installed map. Wraps `MapDescriptionYaml` metadata. Key operations: `findContentRoot()` (locates `polygons.txt` directory), `getGameXmlFilePath(gameName)`, `readGameNotes(gameName)`, `isOutOfDate(download)`, `findMapSkin(name)` / `getSkinNames()`.
+- **`InstalledMap`** — Represents one installed map. Wraps `MapDescriptionYaml` metadata. Key operations: `findContentRoot()` (locates `polygons.txt` directory), `getGameXmlFilePath(gameName)`, `readGameNotes(gameName)`, `getLastModifiedDate()` (dates the installed version), `isOutOfDate(download)` (that date is before the download's last commit), `findMapSkin(name)` / `getSkinNames()`.
 - **`InstalledMapsListing`** — Aggregates all installed maps. Scans the user maps folder, provides sorted game lists, case-insensitive map lookup, game XML path resolution, and identifies out-of-date maps.
 - **`file/system/loader/`** — File system access for map loading (3 files).
 - **`listing/MapListingFetcher`** — Retrieves available maps from the server.
 - **`ZippedMapsExtractor`** — Extracts downloaded map ZIP files, auto-generates `map.yml` if missing.
 
-#### Map Download System (`map/download/`, 15 files)
+#### Map Download System (`map/download/`, 24 files)
 
-- **`DownloadCoordinator`** — Singleton managing concurrent downloads. Queue supports max 3 concurrent downloads. Methods: `accept(MapDownloadItem)`, `cancelDownloads()`, `pollTerminatedDownloads()`.
-- **`DownloadFile`** — Single download state machine (NOT_STARTED → DOWNLOADING → DONE/CANCELLED). Downloads to temp, extracts, validates, generates `map.yml` if missing, flattens nested folder structure.
-- **`DownloadMapsWindow`** — Swing window with tabs for available/installed/out-of-date maps. Supports search, multi-select, progress display, and remove/update.
+- **`DownloadCoordinator`** — Singleton managing concurrent downloads. Queue supports max 3 concurrent downloads. Methods: `accept(MapDownloadItem)`, `cancel(MapDownloadItem)`, `pollTerminatedDownloads()`.
+- **`DownloadFile`** — Single download state machine (NOT_STARTED → DOWNLOADING → DONE/CANCELLED/FAILED; a failure tells the `DownloadListener`, and `ManagedMapStore` marks the map ERROR). Downloads to temp, extracts, validates, generates `map.yml` if missing, flattens nested folder structure.
+- **`DownloadMapsWindow`** — The map browser: a `BackBar` with the title (its link back to the game closes the window; as a page the main window's bar shows instead), then the tabs "Installed" (its `UpdatesBadge` counts maps with updates; first only when there are updates) and "Get more maps"; `TabMembership` fixes the tab of each map when the window opens, so a map installed or uninstalled in it stays in its tab (with its new status and buttons) until the window opens again. Each tab is a `MapList`, split into the maps (~58%) and `MapDetails` (the rest). Above the maps sit the search (name or tags, shared by both tabs) and the `MapViewSwitch`, an icon button with a menu as in file managers, for the `MapBrowserView` (List, List with pictures, Tiles; kept in `ClientSetting.mapBrowserView`, default list with pictures). Each map is a `MapRow` in that view: compact (name, creator, status, small button), with picture (preview, name, creator, first sentence of the description, status, buttons) or a tile (large preview, name, creator, short status, small buttons). Every view and the details show the same buttons: Install, Uninstall, Uninstall + Update for outdated maps, or Cancel. Previews are `MapPreviewBox`es; `MapPreviews` loads them in the background, cuts them to the box shape and shrinks them in halving steps plus a bicubic step to the screen's pixels (eg twice the size at 200 % scaling, never more than the picture has), and keeps the most recent ones per size (`Caches`: 144×81 rows, 256×144 tiles, 960×540 details); a picture with too few pixels is shown centered at its size, not blown up. The creator is read loosely from the description ("Author:"/"Creator:" or the first capitalized "by" name); the server's "No description available" placeholder counts as no description. A click selects a map, ctrl-click toggles, shift-click selects a range (`MapSelection`); the bar above the maps then offers "Install selected"/"Update selected" and Clear. `MapDetails` shows the lead map with a preview as wide as the column, versions, size, status, buttons and the full HTML description in the normal text size. A running download shows as a bar on its map's preview (or at the bottom of a compact row) and as a percent in its status, with a Cancel button that stops just that download; downloads go on when the window closes (Done or title-bar X). The footer links to the map creator. While the main window is showing, its content opens there as a page instead of in this window.
 - **`DownloadMapsWindowModel`** / **`DownloadMapsWindowMapsListing`** — Window logic and display data.
 - **`ContentReader`** — HTTP file fetcher.
 - **`DownloadFileParser`** / **`DownloadFileDescription`** — Download metadata parsing and container.
-- **`MapDownloadProgressPanel`** / **`MapDownloadProgressListener`** / **`FileSizeWatcher`** — Progress monitoring UI.
-- **`MapDownloadSwingTable`** — Table renderer for map list.
+- **`FileSizeWatcher`** — Reports download progress by watching the size of the downloading file.
 - **`DownloadConfiguration`** / **`DownloadListener`** / **`FileSystemAccessStrategy`** — Configuration, callbacks, and I/O abstraction.
 
 ### Network UI Actions (`network/ui/`, 6 files)
@@ -390,11 +389,11 @@ Remote actions for host game management:
 ### Other Subsystems
 
 - **`ui/background/`** (5 files) — Background task utilities: `BackgroundTaskRunner`, `TaskRunner`, `WaitDialog`, `WaitPanel`, `WaitWindow` — modal progress dialogs for long operations off the EDT.
-- **`ui/`** (3 files) — `GameChooser` (game selection dialog), `GameNotesView` (game instructions display), `DefaultGameChooserEntry` (game list entry).
+- **`ui/`** — `GameChooser` (game selection dialog), `GameNotesView` (game instructions display), `DefaultGameChooserEntry` (game list entry), `PageHost` and `MainWindowPages` (screens like Settings and Maps open as pages of the game client's main window while it is showing), `BackBar` (the bar at the top of every screen but the main menu: the link back, a painted ← icon without text whose tool tip and accessible name are "Back to <destination>" from the `startup.BackBar.*` keys of the language files (eg "Back to Main menu", "Zurück zu: Hauptmenü"), always at the same place and at least 44×44 px, the bold title, room for actions or a note on the right; Escape and the mouse's back button run the same back while the bar is showing).
 - **`save/game/GameDataWriter`** — Writes game data to file.
 - **`message/PlayerListing`** — Serializable snapshot of player status: player-to-node mappings, enabled/disabled states, type assignments, game name, round number, alliance order.
 - **`system/HttpProxy`** — HTTP proxy configuration.
-- **`lookandfeel/`** (2 files) — `LookAndFeel`, `LookAndFeelSwingFrameListener` — UI theme management.
+- **`lookandfeel/`** (2 files) — `LookAndFeel`, `LookAndFeelSwingFrameListener` — UI theme management. `LookAndFeel.setPrimaryButtonStyle()` marks the main action of a screen (eg "Done"); FlatLaf themes paint it like their default button (a quiet fill in the TripleA themes). `setBorderlessButtonStyle()` (secondary links; a click does not focus them, so no focus ring shows unless Tab reaches them), `setSmallStyle()` (compact controls), `setCardStyle()` (raised, rounded panel), `newSectionLabel()` (small heading), `newFooterBorder()` (separator line above a window's buttons) and `getAccentColor()` complete the shared styles; `primary` and `card` are defined in the game client's `FlatLaf.properties`, `small` is built into FlatLaf. The text size setting (`TextSize`) enlarges FlatLaf's default font and applies at once.
 
 ### Game Startup Flows
 

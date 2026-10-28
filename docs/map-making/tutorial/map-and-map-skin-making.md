@@ -171,7 +171,7 @@ Files:
 <p>
 <h3>Now for the map creator</h3>
 <p>
-    To run the map creator, you can start TripleA, then click "Run Map Creator".
+    To run the map creator, you can start TripleA, click "Maps" in the main menu, then "Make your own map".
 </p>
 <p>
 	Now that it is running, you will see a simple screen with some options on the left, and some options in the middle.

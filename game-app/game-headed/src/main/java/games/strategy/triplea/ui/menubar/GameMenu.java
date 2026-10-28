@@ -78,7 +78,7 @@ final class GameMenu {
         .addMenuItem(addEditMode(frame))
         .addSeparator()
         .addMenuItem(
-            new JMenuItemBuilder("Engine Settings", Mnemonic.ENGINE_SETTINGS.getMnemonicCode())
+            new JMenuItemBuilder("Settings", Mnemonic.ENGINE_SETTINGS.getMnemonicCode())
                 .actionListener(() -> ClientSetting.showSettingsWindow(frame)))
         .addMenuItem(SoundOptions.buildGlobalSoundSwitchMenuItem())
         .addMenuItem(SoundOptions.buildSoundOptionsMenuItem())
@@ -102,7 +102,10 @@ final class GameMenu {
                               new PropertiesUi(
                                   gameData.getProperties().getEditableProperties(), false);
                           JOptionPane.showMessageDialog(
-                              frame, ui, "Game Options", JOptionPane.PLAIN_MESSAGE);
+                              frame,
+                              PropertiesUi.newScrollableView(ui),
+                              "Game Options",
+                              JOptionPane.PLAIN_MESSAGE);
                         })
                     .build())
         .addMenuItemIf(

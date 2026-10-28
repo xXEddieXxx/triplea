@@ -3,6 +3,7 @@ package games.strategy.triplea.ui;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.data.TechnologyFrontier;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.triplea.Constants;
 import games.strategy.triplea.Properties;
 import games.strategy.triplea.attachments.PlayerAttachment;
@@ -227,7 +228,9 @@ class TechPanel extends ActionPanel {
           add(SwingComponents.leftBox(actionLabel));
 
           if (Properties.getWW2V3TechModel(getData().getProperties())) {
-            add(createButtonsPanel(new JButton(getTechTokenAction), new JButton(justRollTech)));
+            final JButton doneButton = new JButton(justRollTech);
+            LookAndFeel.setPrimaryButtonStyle(doneButton);
+            add(createButtonsPanel(new JButton(getTechTokenAction), doneButton));
           } else {
             add(createButtonsPanel(new JButton(getTechRollsAction), createDoneButton()));
           }

@@ -2,25 +2,38 @@ package games.strategy.engine.framework.lookandfeel;
 
 import static com.google.common.base.Preconditions.checkState;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.FlatLaf;
+import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.data.RelationshipType;
 import games.strategy.engine.framework.system.SystemProperties;
 import games.strategy.triplea.Constants;
 import games.strategy.triplea.attachments.RelationshipTypeAttachment;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.settings.SettingsWindow;
+import games.strategy.triplea.settings.TextSize;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
+import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.border.Border;
+import javax.swing.plaf.ColorUIResource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NonNls;
 import org.triplea.game.client.ui.swing.laf.SubstanceLookAndFeelManager;
+import org.triplea.swing.JLabelBuilder;
 import org.triplea.util.Services;
 
 /** Provides methods for working with the Swing Look-And-Feel. */
@@ -54,6 +67,12 @@ Look and feel changes can cause instability.
 Please restart all running TripleA instances.""",
               "Close TripleA and Restart",
               JOptionPane.WARNING_MESSAGE);
+        });
+    ClientSetting.textSize.addListener(
+        gameSetting -> {
+          // the fonts of open screens follow; text measured at construction keeps its size
+          setupLookAndFeel(ClientSetting.lookAndFeel.getValueOrThrow());
+          FlatLaf.updateUI();
         });
     setupLookAndFeel(ClientSetting.lookAndFeel.getValueOrThrow());
   }
@@ -109,6 +128,8 @@ Please restart all running TripleA instances.""",
       System.setProperty("apple.laf.useScreenMenuBar", "true");
     }
 
+    // FlatLaf themes read the text size of the settings from their default font
+    FlatLaf.setGlobalExtraDefaults(Map.of("defaultFont", textSizeFont()));
     try {
       UIManager.setLookAndFeel(lookAndFeelName);
     } catch (RuntimeException
@@ -132,6 +153,86 @@ Please restart all running TripleA instances.""",
       // Disabling the painted shadow on Linux falls back to standard lightweight Swing popups.
       UIManager.put("Popup.dropShadowPainted", Boolean.FALSE);
     }
+  }
+
+  /**
+   * The FlatLaf font value of the text size setting, eg "+2": the theme's font, 2 points larger.
+   */
+  @VisibleForTesting
+  static String textSizeFont() {
+    return "+" + ClientSetting.textSize.getValue().orElse(TextSize.NORMAL).getPointsAdded();
+  }
+
+  /**
+   * Marks the button as the main action of its screen, eg "Start Game" or "Done". FlatLaf themes
+   * paint it raised, in a quiet fill (style class "primary", defined in the game client's
+   * FlatLaf.properties); other look and feels ignore it.
+   */
+  public static void setPrimaryButtonStyle(final AbstractButton button) {
+    button.putClientProperty(FlatClientProperties.STYLE_CLASS, "primary");
+  }
+
+  /**
+   * Shows the button without a frame until the mouse is over it, for secondary actions like links
+   * to tools; FlatLaf themes only. A click does not move the focus to it, so it shows no focus ring
+   * unless the player reaches it with the keyboard (Tab still does).
+   */
+  public static void setBorderlessButtonStyle(final AbstractButton button) {
+    button.putClientProperty(
+        FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS);
+    button.setRequestFocusEnabled(false);
+  }
+
+  /** Shows the component in the smaller font of the theme, eg for compact buttons; FlatLaf only. */
+  public static void setSmallStyle(final JComponent component) {
+    component.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+  }
+
+  /**
+   * Shows the panel as a raised, rounded card that groups what belongs together, eg the selected
+   * game (style class "card" in the game client's FlatLaf.properties); FlatLaf themes only.
+   */
+  public static void setCardStyle(final JComponent panel) {
+    panel.putClientProperty(FlatClientProperties.STYLE_CLASS, "card");
+  }
+
+  /**
+   * Returns the theme's color for secondary text, eg a hint below a title. It is a {@link
+   * ColorUIResource}: after a theme change the text takes the new theme's normal text color instead
+   * of keeping the old theme's gray, until the restart a theme change asks for.
+   */
+  public static Color getSecondaryTextColor() {
+    return getThemeColor("Label.disabledForeground");
+  }
+
+  /** Returns the theme's accent color, eg of focus rings and selections. */
+  public static Color getAccentColor() {
+    return getThemeColor("Component.accentColor");
+  }
+
+  /** Returns the theme's color for thin lines that separate areas of a window. */
+  public static Color getSeparatorColor() {
+    return getThemeColor("Separator.foreground");
+  }
+
+  /** Creates the border of a window's footer: a separator line on top, room around its buttons. */
+  public static Border newFooterBorder() {
+    return BorderFactory.createCompoundBorder(
+        BorderFactory.createMatteBorder(1, 0, 0, 0, getSeparatorColor()),
+        BorderFactory.createEmptyBorder(10, 12, 10, 12));
+  }
+
+  private static Color getThemeColor(final @NonNls String key) {
+    return new ColorUIResource(Optional.ofNullable(UIManager.getColor(key)).orElse(Color.GRAY));
+  }
+
+  /** Creates a small heading in capitals and the secondary text color, eg "SELECTED GAME". */
+  public static JLabel newSectionLabel(final String text) {
+    return new JLabelBuilder(text.toUpperCase(Locale.ROOT))
+        .bold()
+        .adjustFontSize(-1)
+        .foregroundColor(getSecondaryTextColor())
+        .build();
   }
 
   public static @NonNls String convertColorToHex(Color color) {

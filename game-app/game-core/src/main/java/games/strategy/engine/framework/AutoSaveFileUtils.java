@@ -24,9 +24,14 @@ import org.jetbrains.annotations.NonNls;
  */
 @Slf4j
 public class AutoSaveFileUtils {
+  /** Returns the folder in the saved games folder that running games save themselves into. */
+  public static Path getAutoSaveFolder() {
+    return ClientSetting.saveGamesFolderPath.getValueOrThrow().resolve("autoSave");
+  }
+
   /** Returns a list path objects representing each auto save file. */
   public static List<Path> getAutoSavePaths() {
-    var autoSaveFolder = ClientSetting.saveGamesFolderPath.getValueOrThrow().resolve("autoSave");
+    var autoSaveFolder = getAutoSaveFolder();
 
     if (!Files.exists(autoSaveFolder)) {
       try {
@@ -58,10 +63,7 @@ public class AutoSaveFileUtils {
 
   @VisibleForTesting
   Path getAutoSaveFile(final String baseFileName) {
-    return ClientSetting.saveGamesFolderPath
-        .getValueOrThrow()
-        .resolve("autoSave")
-        .resolve(getAutoSaveFileName(baseFileName));
+    return getAutoSaveFolder().resolve(getAutoSaveFileName(baseFileName));
   }
 
   @VisibleForTesting

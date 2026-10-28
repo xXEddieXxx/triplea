@@ -50,7 +50,7 @@ to users that they can update the map if it is incremented.
 be one entry per game XML file.
 
 **game_name**: This is the name of any game that is backed by an XML file. This
-name will display when a user clicks 'select game', and this is the game name
+name will display when a user clicks 'Change Game...', and this is the game name
 that displays in the lobby.
 
 **file_name**: This is the name of the game XML file. The engine will search for

@@ -3,6 +3,7 @@ package games.strategy.engine.framework.startup.ui.panels.main.game.selector;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.framework.GameDataFileUtils;
 import games.strategy.triplea.settings.ClientSetting;
+import java.awt.Component;
 import java.awt.FileDialog;
 import java.awt.Frame;
 import java.nio.file.Files;
@@ -13,7 +14,9 @@ import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
+import javax.swing.JOptionPane;
 import lombok.Builder;
+import org.triplea.swing.DialogBuilder;
 import org.triplea.swing.FileChooser;
 
 /**
@@ -39,6 +42,23 @@ public final class GameFileSelector {
         .fileName(getSaveGameName(gameData))
         .build()
         .chooseFile();
+  }
+
+  /**
+   * Lets the player choose a saved game, and says so if the chosen file does not exist. Returns
+   * nothing if the player cancels.
+   */
+  public static Optional<Path> selectSavedGame(final Component parent) {
+    return builder()
+        .fileDoesNotExistAction(
+            file ->
+                DialogBuilder.builder()
+                    .parent(parent)
+                    .title("Save Game File Not Found")
+                    .errorMessage("File does not exist: " + file.toAbsolutePath())
+                    .showDialog())
+        .build()
+        .selectGameFile(JOptionPane.getFrameForComponent(parent));
   }
 
   /**

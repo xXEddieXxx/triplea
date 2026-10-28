@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NonNls;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
 import org.triplea.io.FileUtils;
 import org.triplea.java.Interruptibles;
@@ -24,10 +23,6 @@ class DownloadMapsWindowModel {
     installedMapsListing = InstalledMapsListing.parseMapFiles();
     mapStore = new ManagedMapStore();
     new DownloadMapsWindowMapsListing(availableDownloads, installedMapsListing, mapStore);
-  }
-
-  public boolean isInstalled(final ManagedMap mapDownloadItem) {
-    return getInstallLocation(mapDownloadItem).isPresent();
   }
 
   /// File reference for where to install the file, empty if not installed.
@@ -64,15 +59,5 @@ class DownloadMapsWindowModel {
       mapStore.updateStatus(List.of(mapDownloadItem), ManagedMapStatus.AVAILABLE);
       return true;
     }
-  }
-
-  String toHtmlString(final ManagedMap managedMap) {
-    @NonNls String text = "<h1>" + managedMap.getMapName() + "</h1>\n";
-    MapDownloadItem mapDownloadItem = managedMap.getMapDownloadItem();
-    if (!mapDownloadItem.getPreviewImageUrl().isEmpty()) {
-      text += "<img src='" + mapDownloadItem.getPreviewImageUrl() + "' />\n";
-    }
-    text += mapDownloadItem.getDescription();
-    return text;
   }
 }

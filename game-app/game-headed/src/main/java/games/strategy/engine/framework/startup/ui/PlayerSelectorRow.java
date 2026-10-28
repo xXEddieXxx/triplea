@@ -247,6 +247,23 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
     }
   }
 
+  /**
+   * Sets the type for a quick setup of all players at once. Players that do nothing by default, eg
+   * neutrals, keep doing nothing: a quick setup must not make them take turns.
+   */
+  void setQuickSetupType(final String playerType) {
+    if (!enabled || player.isHidden()) {
+      // like the other buttons that set all players, it leaves disabled and hidden players alone
+      return;
+    }
+    // the map gives these nations to the computer or to nobody, eg neutrals
+    if (player.isDefaultTypeDoesNothing() || player.isDefaultTypeAi()) {
+      setDefaultPlayerType();
+    } else {
+      setPlayerType(playerType);
+    }
+  }
+
   void setDefaultPlayerType() {
     if (player.isDefaultTypeAi()) {
       playerTypes.setSelectedItem(PlayerTypes.PRO_AI.getLabel());

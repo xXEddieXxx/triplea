@@ -337,7 +337,8 @@ public final class MapPropertiesMakerTask extends ToolRunnableTask {
               e -> {
                 final Tuple<PropertiesUi, List<MapPropertyWrapper<?>>> propertyWrapperUi =
                     mapProperties.propertyWrapperUi(true);
-                JOptionPane.showMessageDialog(this, propertyWrapperUi.getFirst());
+                JOptionPane.showMessageDialog(
+                    this, PropertiesUi.newScrollableView(propertyWrapperUi.getFirst()));
                 mapProperties.writePropertiesToObject(propertyWrapperUi.getSecond());
                 createPlayerColorChooser();
                 SwingComponents.redraw(this);

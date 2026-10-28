@@ -42,8 +42,6 @@ public interface IEditableProperty<T> extends Serializable {
   /** Description of what this property is, can be used for tooltip. */
   String getDescription();
 
-  int getRowsNeeded();
-
   @SuppressWarnings("unchecked")
   default boolean setValueIfValid(final Object object) {
     if (validate(object)) {

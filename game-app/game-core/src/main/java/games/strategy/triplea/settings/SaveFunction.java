@@ -74,7 +74,7 @@ final class SaveFunction {
     final String fail = failMsg.toString();
 
     if (success.isEmpty() && fail.isEmpty()) {
-      return new SaveResult("No changes saved", JOptionPane.WARNING_MESSAGE);
+      return new SaveResult("No changes saved", JOptionPane.WARNING_MESSAGE, fail);
     }
     if (!success.isEmpty() && !fail.isEmpty()) {
       return new SaveResult(
@@ -91,13 +91,14 @@ Saved:
 Failed to save:
 """
               + fail,
-          JOptionPane.WARNING_MESSAGE);
+          JOptionPane.WARNING_MESSAGE,
+          fail);
     }
 
     if (success.isEmpty()) {
-      return new SaveResult(fail, JOptionPane.WARNING_MESSAGE);
+      return new SaveResult(fail, JOptionPane.WARNING_MESSAGE, fail);
     }
-    return new SaveResult(success, JOptionPane.INFORMATION_MESSAGE);
+    return new SaveResult(success, JOptionPane.INFORMATION_MESSAGE, fail);
   }
 
   private static boolean doesNewSettingValueDiffer(
@@ -143,5 +144,11 @@ Failed to save:
   static final class SaveResult {
     final String message;
     final int dialogType;
+    // the settings that could not be saved, one line each; empty if all were saved
+    private final String failures;
+
+    boolean hasFailures() {
+      return !failures.isEmpty();
+    }
   }
 }

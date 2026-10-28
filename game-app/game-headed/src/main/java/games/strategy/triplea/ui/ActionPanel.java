@@ -2,6 +2,7 @@ package games.strategy.triplea.ui;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.triplea.ui.panels.map.MapPanel;
 import java.awt.Dimension;
 import java.io.Serial;
@@ -128,11 +129,15 @@ public abstract class ActionPanel extends JPanel {
   }
 
   protected JButton createDoneButton() {
-    return new JButtonBuilder()
-        .title("Done")
-        .actionListener(this::performDone)
-        .toolTip(ActionButtonsPanel.DONE_BUTTON_TOOLTIP)
-        .build();
+    final JButton doneButton =
+        new JButtonBuilder()
+            .title("Done")
+            .actionListener(this::performDone)
+            .toolTip(ActionButtonsPanel.DONE_BUTTON_TOOLTIP)
+            .build();
+    // "Done" ends the phase, the step new players most often look for
+    LookAndFeel.setPrimaryButtonStyle(doneButton);
+    return doneButton;
   }
 
   /**

@@ -22,7 +22,7 @@ If you have just worked on your map, it is presumably in your downloadedMaps fol
 
 * "description.html" file, that contains a small description about the game. Important things to include here are: scenario, time period, setting, etc. Example, "World War II in Europe, starting in 1942". This is the description that people will see when they scroll through the list of maps, so make sure the description clearly tells what the game is about and possibly the captivates players to play your map!
 * "preview.png" file, should be the same image that's inside the "description" folder, except that it is called "preview.png".
-* "map.yml" file. This file specifies important information about your game. "map_name" should be the name of your map in lower case letters and with underscores. "game_name" is how you want the name of your game to appear in the TripleA "Select Game" list. "file_name" is the name of the XML file used by your game. If you have a game that has multiple scenarios with multiple XMLs, you can list multiple instances. See screenshot below.
+* "map.yml" file. This file specifies important information about your game. "map_name" should be the name of your map in lower case letters and with underscores. "game_name" is how you want the name of your game to appear in the game list of TripleA's "Change Game..." button. "file_name" is the name of the XML file used by your game. If you have a game that has multiple scenarios with multiple XMLs, you can list multiple instances. See screenshot below.
 
 <img width="414" height="62" alt="image" src="https://github.com/user-attachments/assets/a764f9a5-937c-4282-a642-0984204b5736" />
 

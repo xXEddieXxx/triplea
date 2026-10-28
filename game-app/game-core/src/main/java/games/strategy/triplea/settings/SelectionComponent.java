@@ -17,9 +17,6 @@ public interface SelectionComponent<T> {
 
   void resetToDefault();
 
-  /** Reset any settings that are bound, and reset the UI. */
-  void reset();
-
   /** The execution context for the {@link SelectionComponent#save(SaveContext)} method. */
   interface SaveContext {
     /**

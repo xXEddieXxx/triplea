@@ -35,8 +35,6 @@ class LobbySelectionViewController
         return viewData.getSelectedRadioButton();
       case RESET_TO_DEFAULT:
         return LobbyChoice.fromUri(ClientSetting.lobbyUri.getDefaultValue().orElseThrow());
-      case RESET:
-        return LobbyChoice.fromUri(ClientSetting.lobbyUri.getValueOrThrow());
       default:
         throw new UnhandledSwitchCaseException(viewEvent);
     }

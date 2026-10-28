@@ -5,6 +5,7 @@ import java.awt.Rectangle;
 import javax.swing.JPanel;
 import javax.swing.JViewport;
 import javax.swing.Scrollable;
+import javax.swing.SwingConstants;
 
 /**
  * A JPanel implementing Scrollable, with the behavior similar to a JTextArea for resizing. That is,
@@ -32,10 +33,11 @@ public class ScrollableJPanel extends JPanel implements Scrollable {
     return getPreferredSize();
   }
 
+  /** A page, like Page Up and Page Down in other applications. */
   @Override
   public int getScrollableBlockIncrement(
       final Rectangle visibleRect, final int orientation, final int direction) {
-    return 10;
+    return orientation == SwingConstants.VERTICAL ? visibleRect.height : visibleRect.width;
   }
 
   @Override

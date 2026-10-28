@@ -84,7 +84,8 @@ dispatch.
 
 | Class | Purpose |
 |---|---|
-| `SwingComponents` | Static helpers: dialogs, combo/list models, progress bars, HTML panes, button groups |
+| `SwingComponents` | Static helpers: dialogs, combo/list models, progress bars, HTML panes, button groups; `newJScrollPane`/`setScrollSpeed` scroll plain panels a text line per wheel notch instead of Swing's 1 px |
+| `WrappingText` | Read-only label-like text that wraps at the width its layout gives it, never widening the window (preferred width 0) |
 | `FileChooser` | Native `FileDialog` wrapper (prefers OS-native over `JFileChooser`); auto-appends extensions, overwrite confirmation |
 | `AutoCompletion` | Case-insensitive autocomplete for editable `JComboBox`; extends `PlainDocument` with Unicode normalization |
 | `DocumentListenerBuilder` | Debounced (100ms) document change listener; ignores paste events |
@@ -97,7 +98,7 @@ dispatch.
 | `ScrollableJPanel` | `Scrollable` JPanel that stretches horizontally but not vertically (pairs with `WrapLayout`) |
 | `ButtonColumn` | Renders a table column as clickable buttons (implements both `TableCellRenderer` and `TableCellEditor`) |
 | `JEditorPaneWithClickableLinks` | HTML editor pane that opens hyperlinks via `OpenFileUtility` |
-| `SettingPersistence` | Interface contract for boolean setting storage |
+| `SettingPersistence` | Interface contract for boolean setting storage; a `JMenuItemCheckBoxBuilder` check box bound to one always shows the stored value, also after something else changed it |
 | `BorderBuilder` | `EmptyBorder` creation with top/left/bottom/right |
 | `ProgressDialog` / `ProgressWindow` | Modal and non-modal indeterminate progress indicators |
 

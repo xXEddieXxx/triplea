@@ -542,4 +542,9 @@ public class ServerSetupPanel extends SetupPanel implements IRemoteModelListener
   public boolean isCancelButtonVisible() {
     return true;
   }
+
+  @Override
+  public String getScreenTitle() {
+    return getWayToPlayTitle("HostNetworkGame");
+  }
 }

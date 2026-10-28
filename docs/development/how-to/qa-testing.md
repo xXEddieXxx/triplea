@@ -31,8 +31,9 @@ Ensure compatibility between network nodes running different versions.
 - Verify important combat rules are working (can be combined with above step)
 
 - Local host + client
-  - This means start up two copies of triplea.  In one copy you click ‘host networked game’
-and start hosting.  In the other copy you click ‘connect to networked game’ and join.  The
+  - This means start up two copies of triplea.  In one copy you click ‘Multiplayer’ > ‘Host in
+local network’ and start hosting.  In the other copy you click ‘Multiplayer’ > ‘Join in local
+network’ and join.  The
 client should choose the FIRST player in the list (this is to test that the delegates are
 sending data correctly). Start the game and play a round against yourself, making sure
 everything looks good.

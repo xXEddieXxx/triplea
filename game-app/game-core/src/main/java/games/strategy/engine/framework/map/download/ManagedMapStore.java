@@ -154,6 +154,16 @@ final class ManagedMapStore implements DownloadListener {
     SwingUtilities.invokeLater(() -> updateStatus(List.of(managedMap), ManagedMapStatus.INSTALLED));
   }
 
+  /** Marks the map failed, which offers to install it again. */
+  @Override
+  public void downloadFailed(final MapDownloadItem download) {
+    Optional.ofNullable(getMapByMapDownloadItem(download))
+        .ifPresent(
+            managedMap ->
+                SwingUtilities.invokeLater(
+                    () -> updateStatus(List.of(managedMap), ManagedMapStatus.ERROR)));
+  }
+
   @Override
   public String toString() {
     return groupsByStatus.entrySet().stream()

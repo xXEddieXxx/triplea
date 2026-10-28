@@ -6,6 +6,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.ClientFileSystemHelper;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.engine.framework.map.download.MapBrowserView;
 import games.strategy.engine.framework.startup.ui.posted.game.DiceServerEditor;
 import games.strategy.engine.framework.system.HttpProxy;
 import games.strategy.engine.framework.system.SystemProperties;
@@ -105,6 +106,17 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
   public static final ClientSetting<HttpProxy.ProxyChoice> proxyChoice =
       new EnumClientSetting<>(
           HttpProxy.ProxyChoice.class, "PROXY_CHOICE", HttpProxy.ProxyChoice.NONE);
+  public static final ClientSetting<TextSize> textSize =
+      new EnumClientSetting<>(TextSize.class, "TEXT_SIZE", TextSize.NORMAL);
+  // how the maps window shows its maps; the switch above its lists changes it
+  public static final ClientSetting<MapBrowserView> mapBrowserView =
+      new EnumClientSetting<>(
+          MapBrowserView.class, "MAP_BROWSER_VIEW", MapBrowserView.LIST_WITH_PICTURES);
+  public static final ClientSetting<Boolean> startFullScreen =
+      new BooleanClientSetting("START_FULL_SCREEN", false);
+  // where the main window was when it last closed: "x,y,width,height", unset while maximized
+  public static final ClientSetting<String> mainWindowBounds =
+      new StringClientSetting("MAIN_WINDOW_BOUNDS");
   public static final ClientSetting<String> proxyHost = new StringClientSetting("PROXY_HOST");
   public static final ClientSetting<Integer> proxyPort = new IntegerClientSetting("PROXY_PORT");
   public static final BooleanClientSetting rememberLoginPassword =

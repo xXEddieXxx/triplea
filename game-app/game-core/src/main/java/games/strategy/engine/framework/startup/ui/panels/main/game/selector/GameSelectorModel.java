@@ -39,8 +39,11 @@ public class GameSelectorModel extends Observable implements GameSelector {
   @Getter(onMethod_ = {@Override})
   private GameData gameData = null;
 
-  @Getter private String gameName = "-";
-  @Getter private String gameRound = "-";
+  /** Shown for the game name and round while there is no game. */
+  private static final String UNKNOWN = "-";
+
+  @Getter private String gameName = UNKNOWN;
+  @Getter private String gameRound = UNKNOWN;
   @Nullable private String fileName;
   @Getter private boolean canSelect = true;
   @Getter private boolean hostIsHeadlessBot = false;
@@ -154,14 +157,20 @@ public class GameSelectorModel extends Observable implements GameSelector {
     notifyObs();
   }
 
-  public String getFileName() {
-    return Optional.ofNullable(fileName).orElse("-");
+  /** Returns the file name of the loaded save game, or empty when a new game is selected. */
+  Optional<String> getSaveGameFileName() {
+    return Optional.ofNullable(fileName);
+  }
+
+  /** Returns whether the round is known, ie a game or its listing is loaded. */
+  boolean isGameRoundKnown() {
+    return !UNKNOWN.equals(gameRound);
   }
 
   public void setGameData(final GameData data) {
     synchronized (this) {
       if (data == null) {
-        gameName = gameRound = "-";
+        gameName = gameRound = UNKNOWN;
       } else {
         gameName = data.getGameName();
         gameRound = "" + data.getSequence().getRound();

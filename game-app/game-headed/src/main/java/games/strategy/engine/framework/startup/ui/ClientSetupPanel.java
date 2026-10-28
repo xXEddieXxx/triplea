@@ -212,6 +212,11 @@ public class ClientSetupPanel extends SetupPanel {
   }
 
   @Override
+  public String getScreenTitle() {
+    return getWayToPlayTitle("ConnectToNetworkedGame");
+  }
+
+  @Override
   public Optional<ILauncher> getLauncher() {
     throw new UnsupportedOperationException();
   }

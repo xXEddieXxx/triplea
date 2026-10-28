@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.List;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import org.triplea.java.ThreadRunner;
@@ -28,10 +27,8 @@ public class ChangeGameOptionsClientAction {
     try {
       final List<IEditableProperty<?>> properties = GameProperties.readEditableProperties(oldBytes);
       final PropertiesUi pui = new PropertiesUi(properties, true);
-      final JScrollPane scroll = new JScrollPane(pui);
-      scroll.setBorder(null);
-      scroll.getViewport().setBorder(null);
-      final JOptionPane pane = new JOptionPane(scroll, JOptionPane.PLAIN_MESSAGE);
+      final JOptionPane pane =
+          new JOptionPane(PropertiesUi.newScrollableView(pui), JOptionPane.PLAIN_MESSAGE);
       final String ok = "OK";
       final String cancel = "Cancel";
       pane.setOptions(new Object[] {ok, cancel});

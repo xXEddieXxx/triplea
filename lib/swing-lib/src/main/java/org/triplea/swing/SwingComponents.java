@@ -36,6 +36,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.ListModel;
+import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
@@ -53,6 +54,7 @@ import org.triplea.swing.jpanel.JPanelBuilder;
  */
 @UtilityClass
 public final class SwingComponents {
+  private static final int SCROLL_UNIT_INCREMENT = 16;
   private static final Collection<String> visiblePrompts = new HashSet<>();
 
   /**
@@ -94,7 +96,20 @@ public final class SwingComponents {
     scroll.setViewportView(contents);
     scroll.setBorder(null);
     scroll.getViewport().setBorder(null);
+    setScrollSpeed(scroll);
     return scroll;
+  }
+
+  /**
+   * Scrolls a view that sets no scroll step itself (eg a plain {@code JPanel}) by a text line per
+   * mouse wheel notch, instead of by Swing's default of one pixel. A {@link Scrollable} view, eg a
+   * table scrolling by rows, keeps its own step: a set unit increment would override it.
+   */
+  public static void setScrollSpeed(final JScrollPane scroll) {
+    if (!(scroll.getViewport().getView() instanceof Scrollable)) {
+      scroll.getVerticalScrollBar().setUnitIncrement(SCROLL_UNIT_INCREMENT);
+      scroll.getHorizontalScrollBar().setUnitIncrement(SCROLL_UNIT_INCREMENT);
+    }
   }
 
   /**

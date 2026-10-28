@@ -44,6 +44,11 @@ public class InstalledMapsListing {
     return new InstalledMapsListing(folder);
   }
 
+  /** The installed maps, eg to show some of them in the main menu. */
+  public Collection<InstalledMap> getInstalledMaps() {
+    return List.copyOf(installedMaps);
+  }
+
   public static Optional<Path> searchAllMapsForMapName(String mapName) {
     return parseMapFiles().findContentRootForMapName(mapName);
   }

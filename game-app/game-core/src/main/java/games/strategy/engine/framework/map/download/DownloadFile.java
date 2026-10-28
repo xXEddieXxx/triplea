@@ -27,16 +27,22 @@ final class DownloadFile {
     NOT_STARTED,
     DOWNLOADING,
     CANCELLED,
+    FAILED,
     DONE
   }
 
   private final MapDownloadItem download;
   private final DownloadListener downloadListener;
+  private final ContentReader contentReader;
   private volatile DownloadState state = DownloadState.NOT_STARTED;
 
-  DownloadFile(final MapDownloadItem download, final DownloadListener downloadListener) {
+  DownloadFile(
+      final MapDownloadItem download,
+      final DownloadListener downloadListener,
+      final ContentReader contentReader) {
     this.download = download;
     this.downloadListener = downloadListener;
+    this.contentReader = contentReader;
   }
 
   MapDownloadItem getDownload() {
@@ -64,13 +70,21 @@ final class DownloadFile {
           final FileSizeWatcher watcher =
               new FileSizeWatcher(
                   targetTempFileToDownloadTo,
-                  bytesReceived -> downloadListener.downloadUpdated(download, bytesReceived));
+                  bytesReceived -> {
+                    // a cancelled download may still be receiving; its map shows no progress
+                    if (state == DownloadState.DOWNLOADING) {
+                      downloadListener.downloadUpdated(download, bytesReceived);
+                    }
+                  });
 
           try {
-            DownloadConfiguration.contentReader()
-                .downloadToFile(download.getDownloadUrl(), targetTempFileToDownloadTo);
+            contentReader.downloadToFile(download.getDownloadUrl(), targetTempFileToDownloadTo);
           } catch (final IOException e) {
-            log.error("Failed to download: {}", download.getDownloadUrl(), e);
+            if (state != DownloadState.CANCELLED) {
+              state = DownloadState.FAILED;
+              log.error("Failed to download: {}", download.getDownloadUrl(), e);
+              downloadListener.downloadFailed(download);
+            }
             return;
           } finally {
             watcher.stop();
@@ -159,6 +173,13 @@ final class DownloadFile {
   }
 
   boolean isDone() {
-    return state == DownloadState.CANCELLED || state == DownloadState.DONE;
+    return state == DownloadState.CANCELLED
+        || state == DownloadState.FAILED
+        || state == DownloadState.DONE;
+  }
+
+  /** Whether the download waits to start or is running. */
+  boolean isRunning() {
+    return state == DownloadState.NOT_STARTED || state == DownloadState.DOWNLOADING;
   }
 }

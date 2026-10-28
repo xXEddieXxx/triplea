@@ -13,17 +13,23 @@ import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
 /// Class that accepts and queues download requests. Download requests are started in background
 /// thread, this class ensures N are in progress until all are done.
 public final class DownloadCoordinator {
-  public static final DownloadCoordinator instance = new DownloadCoordinator();
+  public static final DownloadCoordinator instance =
+      new DownloadCoordinator(DownloadConfiguration.contentReader());
 
   private static final int MAX_CONCURRENT_DOWNLOADS = 3;
 
   private final Object lock = new Object();
+  private final ContentReader contentReader;
 
   private final Queue<DownloadFile> pendingDownloads = new ArrayDeque<>();
   private final Set<DownloadFile> activeDownloads = new HashSet<>();
   private final Set<DownloadFile> terminatedDownloads = new HashSet<>();
 
   private final List<DownloadListener> downloadListeners = new CopyOnWriteArrayList<>();
+
+  DownloadCoordinator(final ContentReader contentReader) {
+    this.contentReader = contentReader;
+  }
 
   void addDownloadListener(final DownloadListener downloadListener) {
     downloadListeners.add(downloadListener);
@@ -36,7 +42,7 @@ public final class DownloadCoordinator {
   void accept(final MapDownloadItem download) {
     synchronized (lock) {
       if (isNewDownload(download)) {
-        pendingDownloads.add(new DownloadFile(download, new Listener()));
+        pendingDownloads.add(new DownloadFile(download, new Listener(), contentReader));
         updateQueue();
       }
     }
@@ -65,19 +71,27 @@ public final class DownloadCoordinator {
     }
   }
 
-  void cancelDownloads() {
+  /// Cancels the download of the map, whether it waits or runs; the next waiting one may start.
+  void cancel(final MapDownloadItem download) {
     synchronized (lock) {
-      for (final DownloadFile download : pendingDownloads) {
-        download.cancelDownload(); // CAUTION: calling out to external code while holding lock
-        terminatedDownloads.add(download);
-      }
-      pendingDownloads.clear();
+      cancelIn(pendingDownloads, download);
+      cancelIn(activeDownloads, download);
+      updateQueue();
+    }
+  }
 
-      for (final DownloadFile download : activeDownloads) {
-        download.cancelDownload(); // CAUTION: calling out to external code while holding lock
-        terminatedDownloads.add(download);
+  private void cancelIn(
+      final Collection<DownloadFile> downloadFiles, final MapDownloadItem download) {
+    assert Thread.holdsLock(lock);
+
+    final Iterator<DownloadFile> iterator = downloadFiles.iterator();
+    while (iterator.hasNext()) {
+      final DownloadFile downloadFile = iterator.next();
+      if (downloadFile.getDownload().equals(download)) {
+        iterator.remove();
+        downloadFile.cancelDownload();
+        terminatedDownloads.add(downloadFile);
       }
-      activeDownloads.clear();
     }
   }
 
@@ -113,7 +127,17 @@ public final class DownloadCoordinator {
     @Override
     public void downloadComplete(final MapDownloadItem download) {
       downloadListeners.forEach(it -> it.downloadComplete(download));
+      startNextDownload();
+    }
 
+    @Override
+    public void downloadFailed(final MapDownloadItem download) {
+      downloadListeners.forEach(it -> it.downloadFailed(download));
+      startNextDownload();
+    }
+
+    /** Moves a finished download out of the running ones, which makes room for the next one. */
+    private void startNextDownload() {
       synchronized (lock) {
         final Iterator<DownloadFile> iterator = activeDownloads.iterator();
         while (iterator.hasNext()) {

@@ -61,54 +61,75 @@ final class DownloadFile {
           if (state == DownloadState.CANCELLED) {
             return;
           }
-
-          @NonNls final String fileNameToWrite = normalizeMapName(download.getMapName()) + ".zip";
-
-          final Path targetTempFileToDownloadTo =
-              FileUtils.newTempFolder().resolve(fileNameToWrite);
-
-          final FileSizeWatcher watcher =
-              new FileSizeWatcher(
-                  targetTempFileToDownloadTo,
-                  bytesReceived -> {
-                    // a cancelled download may still be receiving; its map shows no progress
-                    if (state == DownloadState.DOWNLOADING) {
-                      downloadListener.downloadUpdated(download, bytesReceived);
-                    }
-                  });
-
+          final boolean installed;
           try {
-            contentReader.downloadToFile(download.getDownloadUrl(), targetTempFileToDownloadTo);
-          } catch (final IOException e) {
+            installed = downloadAndInstall();
+          } catch (final RuntimeException e) {
+            // eg a full disk or a zip that would write outside its folder: else no listener heard
+            // of the end, and one waiting for the map waited for ever. A cancelled download ended
+            // already: a failure now would reach a new download of the map
             if (state != DownloadState.CANCELLED) {
               state = DownloadState.FAILED;
-              log.error("Failed to download: {}", download.getDownloadUrl(), e);
+              log.error("Failed to download or install: {}", download.getMapName(), e);
               downloadListener.downloadFailed(download);
             }
             return;
-          } finally {
-            watcher.stop();
           }
-
-          if (state == DownloadState.CANCELLED) {
-            return;
+          if (installed) {
+            downloadListener.downloadComplete(download);
           }
-
-          state = DownloadState.DONE;
-
-          // extract map, if successful and does not have a 'map.yml' file, generate one.
-          ZippedMapsExtractor.unzipMap(targetTempFileToDownloadTo)
-              .ifPresent(
-                  installedMap -> {
-                    if (moveUpSubfolderFilesHasErrors(installedMap)) return;
-                    // create a map description YAML file for the map if it does not contain one
-                    if (MapDescriptionYaml.fromMap(installedMap).isEmpty()) {
-                      MapDescriptionYaml.generateForMap(installedMap);
-                    }
-                  });
-
-          downloadListener.downloadComplete(download);
         });
+  }
+
+  /**
+   * Downloads and unpacks the map; false when it was cancelled (which the coordinator tells) or
+   * failed (which this tells).
+   */
+  private boolean downloadAndInstall() {
+    @NonNls final String fileNameToWrite = normalizeMapName(download.getMapName()) + ".zip";
+
+    final Path targetTempFileToDownloadTo = FileUtils.newTempFolder().resolve(fileNameToWrite);
+
+    final FileSizeWatcher watcher =
+        new FileSizeWatcher(
+            targetTempFileToDownloadTo,
+            bytesReceived -> {
+              // a cancelled download may still be receiving; its map shows no progress
+              if (state == DownloadState.DOWNLOADING) {
+                downloadListener.downloadUpdated(download, bytesReceived);
+              }
+            });
+
+    try {
+      contentReader.downloadToFile(download.getDownloadUrl(), targetTempFileToDownloadTo);
+    } catch (final IOException e) {
+      if (state != DownloadState.CANCELLED) {
+        state = DownloadState.FAILED;
+        log.error("Failed to download: {}", download.getDownloadUrl(), e);
+        downloadListener.downloadFailed(download);
+      }
+      return false;
+    } finally {
+      watcher.stop();
+    }
+
+    if (state == DownloadState.CANCELLED) {
+      return false;
+    }
+
+    state = DownloadState.DONE;
+
+    // extract map, if successful and does not have a 'map.yml' file, generate one.
+    ZippedMapsExtractor.unzipMap(targetTempFileToDownloadTo)
+        .ifPresent(
+            installedMap -> {
+              if (moveUpSubfolderFilesHasErrors(installedMap)) return;
+              // create a map description YAML file for the map if it does not contain one
+              if (MapDescriptionYaml.fromMap(installedMap).isEmpty()) {
+                MapDescriptionYaml.generateForMap(installedMap);
+              }
+            });
+    return true;
   }
 
   /**

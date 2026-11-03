@@ -149,6 +149,26 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new BooleanClientSetting("SHOW_COMMENT_LOG");
   public static final BooleanClientSetting soundEnabled =
       new BooleanClientSetting("SOUND_ENABLED", true);
+  // how loud the sounds play, in percent
+  public static final ClientSetting<Integer> soundVolume =
+      new IntegerClientSetting("SOUND_VOLUME", 100);
+  public static final BooleanClientSetting muteSoundInBackground =
+      new BooleanClientSetting("MUTE_SOUND_IN_BACKGROUND", false);
+  // flash the game window in the taskbar when the turn comes back to the player
+  public static final BooleanClientSetting alertOnMyTurn =
+      new BooleanClientSetting("ALERT_ON_MY_TURN", true);
+  public static final BooleanClientSetting showReliefImages =
+      new BooleanClientSetting("SHOW_RELIEF_IMAGES", true);
+  public static final BooleanClientSetting showMapBlends =
+      new BooleanClientSetting("SHOW_MAP_BLENDS", false);
+  public static final BooleanClientSetting showEndOfTurnReport =
+      new BooleanClientSetting("SHOW_END_OF_TURN_REPORT", true);
+  public static final BooleanClientSetting showTriggeredNotifications =
+      new BooleanClientSetting("SHOW_TRIGGERED_NOTIFICATIONS", true);
+  public static final BooleanClientSetting showTriggerChanceSuccessful =
+      new BooleanClientSetting("SHOW_TRIGGER_CHANCE_SUCCESSFUL", true);
+  public static final BooleanClientSetting showTriggerChanceFailure =
+      new BooleanClientSetting("SHOW_TRIGGER_CHANCE_FAILURE", true);
   public static final ClientSetting<Long> lastCheckForEngineUpdate =
       new LongClientSetting("LAST_CHECK_FOR_ENGINE_UPDATE_EPOCH_MILLI", 0);
   public static final ClientSetting<Long> lastCheckForMapUpdates =
@@ -184,12 +204,26 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
   public static final ClientSetting<char[]> tripleaForumToken =
       new ProtectedStringClientSetting("TRIPLEA_FORUM_TOKEN");
 
+  /**
+   * The player's browser session on forums.triplea-game.org: to read and post as the player, on the
+   * Play by forum page and in the game's turns.
+   */
+  public static final ClientSetting<char[]> tripleaForumSession =
+      new ProtectedStringClientSetting("TRIPLEA_FORUM_SESSION");
+
   public static final ClientSetting<char[]> aaForumUsername =
       new ProtectedStringClientSetting("A&A_FORUM_USERNAME");
   public static final ClientSetting<Integer> aaForumUserId =
       new IntegerClientSetting("A&A_FORUM_USER_ID");
   public static final ClientSetting<char[]> aaForumToken =
       new ProtectedStringClientSetting("A&A_FORUM_TOKEN");
+
+  /**
+   * The player's browser session on axisandallies.org: to read and post as the player, on the Play
+   * by forum page and in the game's turns.
+   */
+  public static final ClientSetting<char[]> aaForumSession =
+      new ProtectedStringClientSetting("A&A_FORUM_SESSION");
 
   public static final ClientSetting<Boolean> unitScrollerHighlightTerritory =
       new BooleanClientSetting("UNIT_SCROLLER_HIGHLIGHT_TERRITORY", true);
@@ -239,6 +273,7 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
    */
   public static void initialize() {
     setPreferences(Preferences.userNodeForPackage(ClientSetting.class));
+    LegacyPreferences.moveToClientSettings(Preferences.userRoot());
   }
 
   /** A method exposing internals for testing purposes. */

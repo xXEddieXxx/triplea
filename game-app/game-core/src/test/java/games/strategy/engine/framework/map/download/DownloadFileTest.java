@@ -8,14 +8,26 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import games.strategy.engine.framework.map.download.DownloadFile.DownloadState;
+import games.strategy.triplea.settings.ClientSetting;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.sonatype.goodies.prefs.memory.MemoryPreferences;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
+import org.triplea.io.CloseableDownloader;
 
 class DownloadFileTest {
   private static final MapDownloadItem MAP_DOWNLOAD_ITEM =
@@ -67,6 +79,82 @@ class DownloadFileTest {
         .as("no longer running, so a new maps window does not show it downloading")
         .isEqualTo(DownloadState.FAILED);
     assertThat(download.isRunning()).isFalse();
+  }
+
+  @DisplayName("A cancelled download that breaks afterwards reports no failure")
+  @Test
+  void cancelledDownloadReportsNoFailure() throws InterruptedException {
+    final DownloadListener listener = mock(DownloadListener.class);
+    final CountDownLatch reading = new CountDownLatch(1);
+    final DownloadFile download =
+        new DownloadFile(
+            MAP_DOWNLOAD_ITEM,
+            listener,
+            new ContentReader(
+                uri -> {
+                  reading.countDown();
+                  try {
+                    release.await();
+                  } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                  }
+                  throw new IllegalStateException("broken after the cancel");
+                }));
+    download.startAsyncDownload();
+    // the cancel comes while the download reads, not before its thread began
+    assertThat(reading.await(5, TimeUnit.SECONDS)).as("the download reads").isTrue();
+
+    download.cancelDownload();
+    release.countDown();
+
+    // a failure now would reach a new download of the same map, eg one a game waits for
+    verify(listener, after(500).never()).downloadFailed(MAP_DOWNLOAD_ITEM);
+  }
+
+  @DisplayName("A map that cannot be unpacked fails its download and tells its listener")
+  @Test
+  void unpackingFailureFailsDownload(@TempDir final Path maps) throws IOException {
+    ClientSetting.setPreferences(new MemoryPreferences());
+    ClientSetting.mapFolderOverride.setValueAndFlush(maps);
+    final DownloadListener listener = mock(DownloadListener.class);
+    final byte[] zip = givenZipWith("../outside.txt");
+    final DownloadFile download =
+        new DownloadFile(
+            MAP_DOWNLOAD_ITEM,
+            listener,
+            new ContentReader(
+                uri ->
+                    new CloseableDownloader() {
+                      @Override
+                      public InputStream getStream() {
+                        return new ByteArrayInputStream(zip);
+                      }
+
+                      @Override
+                      public void close() {
+                        // nothing to close for bytes in memory
+                      }
+                    }));
+
+    try {
+      download.startAsyncDownload();
+
+      // the zip would write outside its folder; one waiting for the map is told it failed
+      verify(listener, timeout(5000)).downloadFailed(MAP_DOWNLOAD_ITEM);
+      assertThat(download.getDownloadState()).isEqualTo(DownloadState.FAILED);
+    } finally {
+      ClientSetting.resetPreferences();
+    }
+  }
+
+  private static byte[] givenZipWith(final String entryName) throws IOException {
+    final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+      zip.putNextEntry(new ZipEntry(entryName));
+      zip.write("text".getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+    return bytes.toByteArray();
   }
 
   /** A reader that fails, eg as the server is unreachable, once the latch is counted down. */

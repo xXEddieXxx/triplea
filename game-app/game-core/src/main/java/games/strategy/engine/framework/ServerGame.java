@@ -325,6 +325,14 @@ public class ServerGame extends AbstractGame {
     }
   }
 
+  /**
+   * Waits until the game is stopped, eg its window left: for a game shown without running its
+   * steps, where {@link #startGame} is not called.
+   */
+  public void awaitGameOver() {
+    Interruptibles.await(delegateExecutionStoppedLatch);
+  }
+
   public void setUpGameForRunningSteps() {
     // we don't want to notify that the step has been saved when reloading a saved game, since
     // in fact the step hasn't changed, we are just resuming where we left off

@@ -1,5 +1,6 @@
 package games.strategy.engine.framework.startup.launcher;
 
+import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.framework.ServerGame;
 import games.strategy.engine.framework.message.PlayerListing;
@@ -91,12 +92,76 @@ public class LocalLauncher implements ILauncher {
         game.startGame();
       }
     } finally {
-      // todo(kg), this does not occur on the swing thread, and this notifies setupPanel observers
-      // having an oddball issue with the zip stream being closed while parsing to load default
-      // game. might be caused by closing of stream while unloading map resources.
-      Interruptibles.sleep(100);
-      gameSelector.onGameEnded();
-      SwingComponents.setFrameFromComponentVisible(parent);
+      showSetupAgain(gameSelector, parent);
+    }
+  }
+
+  /** After a game, played or watched: the selected game back to the default, its window shown. */
+  private static void showSetupAgain(final GameSelector gameSelector, final Component parent) {
+    // not on the swing thread, and it notifies setupPanel observers; the pause works around the
+    // zip stream being closed while the default game is parsed, maybe as map resources unload
+    Interruptibles.sleep(100);
+    gameSelector.onGameEnded();
+    SwingComponents.setFrameFromComponentVisible(parent);
+  }
+
+  /**
+   * A launcher that opens the selected game to look at only: its map, units and history, with no
+   * player and no step running, so nothing is played, saved or posted on its own. With no player of
+   * its own the game window shows the history, as to a player waiting for another's turn. Once the
+   * window is left, the parent shows again.
+   */
+  public static ILauncher newViewer(
+      final GameSelector gameSelector, final Component parent, final LaunchAction launchAction) {
+    // the game selected now: a download of its map before the launch takes a while, and the
+    // selection may change meanwhile, eg to the default game after another game ended
+    final GameData selected = gameSelector.getGameData();
+    return () -> {
+      final Optional<ServerGame> viewed = openToView(selected, launchAction);
+      ThreadRunner.runInNewThread(
+          () -> {
+            try {
+              viewed.ifPresent(ServerGame::awaitGameOver);
+            } finally {
+              showSetupAgain(gameSelector, parent);
+            }
+          });
+    };
+  }
+
+  @VisibleForTesting
+  static Optional<ServerGame> openToView(final GameData gameData, final LaunchAction launchAction) {
+    try {
+      return showToView(
+          new ServerGame(
+              gameData,
+              Set.of(),
+              new HashMap<>(),
+              new Messengers(new LocalNoOpMessenger()),
+              ClientNetworkBridge.NO_OP_SENDER,
+              launchAction),
+          launchAction);
+    } catch (final RuntimeException | LinkageError e) {
+      // eg a class of the game window missing: the launcher shows the setup again
+      log.error("Failed to open the game", e);
+      return Optional.empty();
+    }
+  }
+
+  /** Opens the game's window; if that fails, a window half made goes with the game. */
+  private static Optional<ServerGame> showToView(
+      final ServerGame game, final LaunchAction launchAction) {
+    try {
+      game.getData().getGameLoader().startGame(game, Set.of(), launchAction, null);
+      return Optional.of(game);
+    } catch (final MapNotFoundException e) {
+      // The throwing method of MapNotFoundException notifies and prompts user to download the map.
+      game.stopGame();
+      return Optional.empty();
+    } catch (final RuntimeException | LinkageError e) {
+      log.error("Failed to open the game", e);
+      game.stopGame();
+      return Optional.empty();
     }
   }
 

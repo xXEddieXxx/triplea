@@ -12,6 +12,9 @@ import static games.strategy.triplea.settings.SelectionComponentFactory.selectio
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.lobby.LobbySelectionViewFactory;
+import games.strategy.triplea.ui.MapTextStyleEditor;
+import games.strategy.triplea.ui.screen.UnitsDrawer.UnitFlagDrawMode;
+import java.awt.KeyboardFocusManager;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -84,6 +87,58 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     }
   },
 
+  UNIT_FLAGS_BINDING(
+      "Unit flags",
+      SettingGroup.MAP,
+      "A flag of the owner next to each group of units, so you see at a glance whose they are") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return selectionBox(
+          ClientSetting.unitFlagDrawMode,
+          UnitFlagDrawMode.class,
+          List.of(UnitFlagDrawMode.values()),
+          Optional::of,
+          mode -> mode,
+          ClientSettingSwingUiBinding::flagsLabel);
+    }
+  },
+
+  RELIEF_BINDING(
+      "Relief",
+      SettingGroup.MAP,
+      "Mountains, forests and other details drawn on maps that have them") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showReliefImages);
+    }
+  },
+
+  MAP_BLENDS_BINDING(
+      "Blend relief into the map",
+      SettingGroup.MAP,
+      "Mix the relief into the colours of the territories, on maps with relief. Needs Relief.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showMapBlends);
+    }
+  },
+
+  MAP_TEXT_BINDING(
+      "Text on the map",
+      SettingGroup.MAP,
+      "Font size and colours of territory names, unit counts and damage. Saved at once.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      // a game redraws its map when the settings are left
+      return button(
+          "Change...",
+          () ->
+              MapTextStyleEditor.show(
+                  KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(),
+                  () -> {}));
+    }
+  },
+
   SOUND_EFFECTS_BINDING(
       "Sound effects",
       SettingGroup.SOUND,
@@ -91,6 +146,23 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return booleanCheckBox(ClientSetting.soundEnabled);
+    }
+  },
+
+  SOUND_VOLUME_BINDING("Volume", SettingGroup.SOUND, "How loud the sounds play") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return intSlider(ClientSetting.soundVolume, 0, 100, "%");
+    }
+  },
+
+  MUTE_IN_BACKGROUND_BINDING(
+      "Mute in the background",
+      SettingGroup.SOUND,
+      "No sounds while you work in another window. The taskbar can still tell you of your turn.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.muteSoundInBackground);
     }
   },
 
@@ -148,6 +220,27 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     }
   },
 
+  FASTER_ARROW_KEY_SCROLL_BINDING(
+      "Arrow keys with Ctrl",
+      SettingGroup.ZOOM_AND_SCROLLING,
+      "How many times farther the map moves while you hold Ctrl with an arrow key") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return intSlider(ClientSetting.fasterArrowKeyScrollMultiplier, 1, 10, "×");
+    }
+  },
+
+  LOCK_MAP_BINDING(
+      "Lock the map",
+      SettingGroup.ZOOM_AND_SCROLLING,
+      "Keep the map where you scrolled it: it no longer moves to your capital or to battles."
+          + " Also in the View menu of a game.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.lockMap);
+    }
+  },
+
   MAP_EDGE_SCROLL_SPEED_BINDING(
       "Scrolling at the map edge",
       SettingGroup.ZOOM_AND_SCROLLING,
@@ -175,6 +268,57 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return booleanCheckBox(ClientSetting.unitScrollerHighlightTerritory);
+    }
+  },
+
+  ALERT_ON_MY_TURN_BINDING(
+      "Alert me when my turn starts",
+      SettingGroup.NOTIFICATIONS,
+      "Flash TripleA in the taskbar when the other players are done while you are in another"
+          + " window") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.alertOnMyTurn);
+    }
+  },
+
+  SHOW_END_OF_TURN_REPORT_BINDING(
+      "End of turn report",
+      SettingGroup.NOTIFICATIONS,
+      "A message at the end of a turn with the income and what else the turn brought") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showEndOfTurnReport);
+    }
+  },
+
+  SHOW_TRIGGERED_NOTIFICATIONS_BINDING(
+      "Messages of the map",
+      SettingGroup.NOTIFICATIONS,
+      "The messages the rules of a map show when something happens, eg a reached objective") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showTriggeredNotifications);
+    }
+  },
+
+  SHOW_TRIGGER_CHANCE_SUCCESSFUL_BINDING(
+      "Chance rolls that succeed",
+      SettingGroup.NOTIFICATIONS,
+      "A message when a rule of the map that happens by chance took place") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showTriggerChanceSuccessful);
+    }
+  },
+
+  SHOW_TRIGGER_CHANCE_FAILURE_BINDING(
+      "Chance rolls that fail",
+      SettingGroup.NOTIFICATIONS,
+      "A message when a rule of the map that happens by chance did not take place") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showTriggerChanceFailure);
     }
   },
 
@@ -444,6 +588,15 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
   private static final String PIXELS = "px";
   private static final String MILLISECONDS = "ms";
   private static final String SECONDS = "s";
+
+  private static String flagsLabel(final UnitFlagDrawMode mode) {
+    return switch (mode) {
+      case NONE -> "Off";
+      case SMALL_FLAG -> "Small";
+      case LARGE_FLAG -> "Large";
+      default -> throw new IllegalStateException("Unknown flag mode: " + mode);
+    };
+  }
 
   @Getter(onMethod_ = {@Override})
   private final String title;

@@ -78,7 +78,7 @@ final class SettingsPageTest {
 
     assertThat(page.getShownSettingTitles())
         .as("Audio was selected before the search")
-        .containsExactly("Sound effects", "Single sounds");
+        .containsExactly("Sound effects", "Volume", "Mute in the background", "Single sounds");
   }
 
   @DisplayName("The reset link resets the settings of the shown section")

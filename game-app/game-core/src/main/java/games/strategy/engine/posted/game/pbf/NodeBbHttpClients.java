@@ -32,11 +32,18 @@ final class NodeBbHttpClients {
 
   static final class Builder {
     private String bearerToken;
+    private String sessionCookie;
 
     private Builder() {}
 
     Builder bearerToken(final String bearerToken) {
       this.bearerToken = bearerToken;
+      return this;
+    }
+
+    /** The player's browser session, the value of NodeBB's "express.sid" cookie. */
+    Builder sessionCookie(final String sessionCookie) {
+      this.sessionCookie = sessionCookie;
       return this;
     }
 
@@ -46,6 +53,9 @@ final class NodeBbHttpClients {
           new BasicHeader("User-Agent", "triplea/" + ProductVersionReader.getCurrentVersion()));
       if (bearerToken != null) {
         headers.add(new BasicHeader("Authorization", "Bearer " + bearerToken));
+      }
+      if (sessionCookie != null) {
+        headers.add(new BasicHeader("Cookie", "express.sid=" + sessionCookie));
       }
       return HttpClients.custom().setDefaultHeaders(headers).disableCookieManagement().build();
     }

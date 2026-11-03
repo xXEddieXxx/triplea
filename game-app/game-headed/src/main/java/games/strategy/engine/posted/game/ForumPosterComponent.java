@@ -2,6 +2,7 @@ package games.strategy.engine.posted.game;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.posted.game.pbem.PbemMessagePoster;
 import games.strategy.engine.random.IRandomStats;
 import games.strategy.triplea.delegate.GameStepPropertiesHelper;
@@ -9,7 +10,10 @@ import games.strategy.triplea.delegate.remote.IAbstractForumPosterDelegate;
 import games.strategy.triplea.ui.ActionButtonsPanel;
 import games.strategy.triplea.ui.TripleAFrame;
 import games.strategy.triplea.ui.history.HistoryLog;
+import java.awt.FlowLayout;
 import java.util.Collection;
+import java.util.Locale;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -18,7 +22,10 @@ import javax.swing.border.EmptyBorder;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.SwingAction;
 
-/** A panel used to configure and post a PBEM/PBF game. */
+/**
+ * A panel used to configure and post a PBEM/PBF game: what the summary holds, Post, and Post &amp;
+ * Done beside Done, which posts and then goes on, eg ends the turn.
+ */
 public final class ForumPosterComponent extends JPanel {
   private static final long serialVersionUID = 4754052934098190357L;
 
@@ -27,6 +34,10 @@ public final class ForumPosterComponent extends JPanel {
   private TripleAFrame frame;
   private HistoryLog historyLog;
   private final JButton postButton;
+
+  /** Posts, then goes on as Done does: the end of a turn in one click. */
+  private final JButton postAndDoneButton;
+
   private final JCheckBox includeTerritoryCheckBox;
   private final JCheckBox includeProductionCheckBox;
   private final JCheckBox showDetailsCheckBox;
@@ -57,6 +68,12 @@ public final class ForumPosterComponent extends JPanel {
     repostTurnSummaryCheckBox =
         new JCheckBox(SwingAction.of("Repost " + title, e -> updateAllowPost()));
     postButton = new JButton(SwingAction.of("Post " + title, e -> post()));
+    postAndDoneButton = new JButton(SwingAction.of("Post & Done", e -> postAndDone()));
+    postAndDoneButton.setToolTipText(
+        "Posts the " + title.toLowerCase(Locale.ROOT) + ", then goes on as Done does");
+    // on and off with Post, also as the poster switches Post back on after a failed post
+    postButton.addPropertyChangeListener(
+        "enabled", e -> postAndDoneButton.setEnabled(postButton.isEnabled()));
   }
 
   private void updateAllowPost() {
@@ -78,6 +95,22 @@ public final class ForumPosterComponent extends JPanel {
         frame,
         frame.getGame(),
         postButton);
+    repostTurnSummaryCheckBox.setSelected(false);
+  }
+
+  /** Posts, and once the forum or email took it, goes on as Done does, eg ends the turn. */
+  private void postAndDone() {
+    postButton.setEnabled(false);
+    updateHistoryLog();
+    poster.postTurnAndThen(
+        title,
+        historyLog,
+        includeSavegameCheckBox.isSelected(),
+        forumPosterDelegate,
+        frame,
+        frame.getGame(),
+        postButton,
+        doneAction);
     repostTurnSummaryCheckBox.setSelected(false);
   }
 
@@ -116,12 +149,19 @@ public final class ForumPosterComponent extends JPanel {
     add(new JButton(SwingAction.of("View " + title, e -> viewHistoryLog())));
     postButton.setEnabled(!hasPosted);
     add(postButton);
-    add(
+    // beside Done, which it saves a click before
+    final JPanel finish = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    finish.setAlignmentX(LEFT_ALIGNMENT);
+    LookAndFeel.setPrimaryButtonStyle(postAndDoneButton);
+    finish.add(postAndDoneButton);
+    finish.add(Box.createHorizontalStrut(4));
+    finish.add(
         new JButtonBuilder()
             .title("Done")
             .actionListener(doneAction)
             .toolTip(ActionButtonsPanel.DONE_BUTTON_TOOLTIP)
             .build());
+    add(finish);
     validate();
     return this;
   }

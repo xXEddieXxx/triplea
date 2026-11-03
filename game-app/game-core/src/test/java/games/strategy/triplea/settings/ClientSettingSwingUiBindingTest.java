@@ -2,9 +2,11 @@ package games.strategy.triplea.settings;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import games.strategy.triplea.ui.screen.UnitsDrawer.UnitFlagDrawMode;
 import java.util.Arrays;
 import java.util.List;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,42 @@ final class ClientSettingSwingUiBindingTest {
     assertThat(List.of(sectionOf("Sound effects"), sectionOf("Show times in chat")))
         .as("players can set them before a game starts")
         .containsExactly(SettingType.AUDIO, SettingType.ONLINE);
+  }
+
+  @DisplayName("The switches of the View and Game menus are in Settings, in the fitting section")
+  @Test
+  void menuSwitchesAreSettings() {
+    assertThat(
+            List.of(
+                sectionOf("Unit flags"),
+                sectionOf("Relief"),
+                sectionOf("Text on the map"),
+                sectionOf("End of turn report"),
+                sectionOf("Lock the map"),
+                sectionOf("Arrow keys with Ctrl")))
+        .as("before only reachable during a game, now also before one starts")
+        .containsExactly(
+            SettingType.GRAPHICS,
+            SettingType.GRAPHICS,
+            SettingType.GRAPHICS,
+            SettingType.GAMEPLAY,
+            SettingType.CONTROLS,
+            SettingType.CONTROLS);
+  }
+
+  @DisplayName("The flags are chosen by name, and the choice is saved")
+  @Test
+  void flagChoiceIsSaved() {
+    final SelectionComponent<JComponent> flags =
+        ClientSettingSwingUiBinding.UNIT_FLAGS_BINDING.newSelectionComponent();
+    final JComboBox<?> comboBox = (JComboBox<?>) flags.getUiComponent();
+
+    comboBox.setSelectedIndex(2);
+    SaveFunction.saveSettings(List.of(flags), () -> {});
+
+    assertThat(ClientSetting.unitFlagDrawMode.getValueOrThrow())
+        .as("Off, Small, Large: the third is the large flag")
+        .isEqualTo(UnitFlagDrawMode.LARGE_FLAG);
   }
 
   @DisplayName("The sections are the ones players know from other games, in that order")

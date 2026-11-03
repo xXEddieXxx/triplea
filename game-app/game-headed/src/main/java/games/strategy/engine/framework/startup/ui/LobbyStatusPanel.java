@@ -18,8 +18,9 @@ import javax.swing.UIManager;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * How busy the lobby is, in one quiet line at the top of the menu: "● 23 players online · 4 open
- * games", the numbers bold. Nothing shows until the numbers are there.
+ * How busy the lobby is, in one quiet line below Multiplayer, where it says what that click leads
+ * to: "● 23 players online · 4 open games", the numbers bold. Nothing shows until the numbers are
+ * there.
  */
 @Slf4j
 final class LobbyStatusPanel extends JPanel {

@@ -1,17 +1,28 @@
 package games.strategy.triplea.ui;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
+import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.ui.TripleAFrame.ScrollStep;
+import java.awt.Window;
 import java.awt.event.KeyEvent;
+import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.sonatype.goodies.prefs.memory.MemoryPreferences;
 
 /**
  * Exercises the pure scroll math extracted from {@code ArrowKeyScroller}: the frame-interval clamp
  * and the sub-pixel residual accumulation that carries fractional pan velocity across frames. The
  * timer, key-event wiring, and refresh-rate lookup stay display-bound and are not covered here.
+ * Also the decision whether the start of the player's turn flashes the taskbar ({@code
+ * isAlertWanted}).
  */
 final class TripleAFrameTest {
 
@@ -119,6 +130,34 @@ final class TripleAFrameTest {
 
       assertEquals(0, step.stepX());
       assertEquals(0, step.residualX(), RESIDUAL_TOLERANCE);
+    }
+  }
+
+  @Nested
+  final class IsAlertWanted {
+    @BeforeEach
+    void givenClientSettings() {
+      ClientSetting.setPreferences(new MemoryPreferences());
+    }
+
+    @AfterEach
+    void resetClientSettings() {
+      ClientSetting.resetPreferences();
+    }
+
+    @DisplayName("The turn alert flashes only while no TripleA window is active and it is on")
+    @Test
+    void onlyInBackgroundAndWhenOn() {
+      // a mock, not a real window, which a headless test run could not create
+      final boolean inTripleA = TripleAFrame.isAlertWanted(mock(Window.class));
+      final boolean inBackground = TripleAFrame.isAlertWanted(null);
+      ClientSetting.alertOnMyTurn.setValue(false);
+
+      final boolean whenOff = TripleAFrame.isAlertWanted(null);
+
+      assertThat(List.of(inTripleA, inBackground, whenOff))
+          .as("not while the player looks at TripleA, by default in the background, never off")
+          .containsExactly(false, true, false);
     }
   }
 }

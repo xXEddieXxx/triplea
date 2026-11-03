@@ -1,10 +1,12 @@
 package org.triplea.sound;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.GameRunner;
 import games.strategy.triplea.ResourceLoader;
 import games.strategy.triplea.settings.ClientSetting;
+import java.awt.KeyboardFocusManager;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -232,7 +234,10 @@ public class ClipPlayer {
                             inputStream -> {
                               try {
                                 final AdvancedPlayer advancedPlayer =
-                                    new AdvancedPlayer(inputStream);
+                                    new AdvancedPlayer(
+                                        inputStream,
+                                        new VolumeAudioDevice(
+                                            ClientSetting.soundVolume.getValueOrThrow()));
                                 activePlayers.add(advancedPlayer);
                                 try {
                                   advancedPlayer.play();
@@ -250,7 +255,16 @@ public class ClipPlayer {
     return !GameRunner.headless()
         && !"true".equals(System.getenv("java.awt.headless"))
         && ClientSetting.soundEnabled.getSetting()
+        && ClientSetting.soundVolume.getValueOrThrow() > 0
+        && !isMutedInBackground()
         && hasAudio();
+  }
+
+  /** Whether the settings mute the sounds while no window of TripleA is the active one. */
+  @VisibleForTesting
+  static boolean isMutedInBackground() {
+    return ClientSetting.muteSoundInBackground.getSetting()
+        && KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow() == null;
   }
 
   private Optional<URL> loadClipPath(final String pathName) {

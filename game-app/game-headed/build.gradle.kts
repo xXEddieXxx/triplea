@@ -16,7 +16,11 @@ application {
     mainClass.set("org.triplea.game.client.HeadedGameRunner")
     applicationDefaultJvmArgs = listOf(
         //This flag fixes touch gestures in Java-21；Technical Reference: https://stackoverflow.com/questions/48535595/what-replaces-gestureutilities-in-java-9
-        "--add-opens=java.desktop/com.apple.eawt.event=ALL-UNNAMED"
+        "--add-opens=java.desktop/com.apple.eawt.event=ALL-UNNAMED",
+        // the forum's login in a browser window (JCEF) needs these on macOS, see jcefmaven's README
+        "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
+        "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
+        "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED"
     )
 }
 
@@ -31,6 +35,8 @@ dependencies {
     implementation(project(":java-extras"))
     implementation(project(":swing-lib"))
     implementation(project(":websocket-client"))
+    // Chromium for the forum's login page, which has a CAPTCHA; its natives download on first use
+    implementation(libs.jcefmaven)
     testImplementation(project(":test-common"))
     testImplementation(testFixtures(project(":game-core")))
 }
@@ -38,7 +44,11 @@ dependencies {
 tasks.named<Jar>("jar") {
     archiveBaseName.set("$group-$name")
     manifest {
-        attributes("Main-Class" to application.mainClass.get())
+        attributes(
+            "Main-Class" to application.mainClass.get(),
+            // the forum's login in a browser window (JCEF) needs these on macOS, also for java -jar
+            "Add-Opens" to "java.desktop/sun.awt java.desktop/sun.lwawt java.desktop/sun.lwawt.macosx"
+        )
     }
 }
 

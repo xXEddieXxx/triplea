@@ -1,6 +1,7 @@
 package games.strategy.engine.framework.startup.ui.panels.main;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.framework.startup.ui.LocalSetupPanel;
@@ -12,6 +13,7 @@ import games.strategy.engine.posted.game.pbem.IEmailSender;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
+import java.awt.Window;
 import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,6 +114,21 @@ final class HeadedServerSetupModelTest {
     assertThat(model.getPanel())
         .as("the error dialog explains the failure; no setup screen opens behind it")
         .isNull();
+  }
+
+  @DisplayName("A save to watch that does not load opens nothing")
+  @Test
+  void failedLoadWatchesNothing() {
+    final HeadedServerSetupModel model =
+        new HeadedServerSetupModel(gameSelectorModel, save -> false);
+
+    final int windows = Window.getWindows().length;
+
+    // a launch would open the loading window, or throw without a display
+    assertThatCode(() -> model.viewSavedGame(Path.of("broken.tsvg")))
+        .as("no game to launch: the error dialog explains the failure")
+        .doesNotThrowAnyException();
+    assertThat(Window.getWindows()).as("no loading window opens").hasSize(windows);
   }
 
   private HeadedServerSetupModel givenModelLoading(final GameData save) {

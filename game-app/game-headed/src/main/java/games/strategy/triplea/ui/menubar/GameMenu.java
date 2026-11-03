@@ -8,16 +8,18 @@ import games.strategy.engine.framework.system.SystemProperties;
 import games.strategy.engine.random.IRandomStats;
 import games.strategy.engine.random.PlainRandomSource;
 import games.strategy.engine.random.RandomStatsDetails;
+import games.strategy.triplea.image.MapImage;
+import games.strategy.triplea.image.TileImageFactory;
 import games.strategy.triplea.odds.calculator.BattleCalculatorDialog;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.ui.PoliticalStateOverview;
 import games.strategy.triplea.ui.TripleAFrame;
-import games.strategy.triplea.ui.UiContext;
 import games.strategy.triplea.ui.VerifiedRandomNumbersDialog;
 import games.strategy.triplea.ui.statistics.StatisticsDialog;
 import java.awt.Dimension;
 import java.awt.GridBagLayout;
 import java.awt.Toolkit;
+import java.util.List;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -29,8 +31,6 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.event.MenuEvent;
-import javax.swing.event.MenuListener;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -79,7 +79,7 @@ final class GameMenu {
         .addSeparator()
         .addMenuItem(
             new JMenuItemBuilder("Settings", Mnemonic.ENGINE_SETTINGS.getMnemonicCode())
-                .actionListener(() -> ClientSetting.showSettingsWindow(frame)))
+                .actionListener(() -> showSettings(frame)))
         .addMenuItem(SoundOptions.buildGlobalSoundSwitchMenuItem())
         .addMenuItem(SoundOptions.buildSoundOptionsMenuItem())
         .addSeparator()
@@ -117,7 +117,7 @@ final class GameMenu {
                         () -> new VerifiedRandomNumbersDialog(frame.getRootPane()).setVisible(true))
                     .build())
         .addMenuItem(getShowPoliticsPanel(frame))
-        .addMenuItem(getNotificationSettings(frame))
+        .addMenuItem(getNotificationSettings())
         .addMenuItem(addShowDiceStats(frame))
         .addMenuItem(addRollDice(frame))
         .addMenuItemIf(ClientSetting.showBetaFeatures.getValueOrThrow(), () -> addStatistics(frame))
@@ -127,6 +127,35 @@ final class GameMenu {
                 () -> BattleCalculatorDialog.show(frame, null, frame.getGame().getData()),
                 Mnemonic.BATTLE_CALCULATOR.getMnemonicCode()))
         .build();
+  }
+
+  /**
+   * Opens the settings, which return once the player leaves them, then redraws the map if they
+   * changed how it looks: its flags, relief, blends, text or colours.
+   */
+  private static void showSettings(final TripleAFrame frame) {
+    final List<Object> mapLook = mapLook();
+    ClientSetting.showSettingsWindow(frame);
+    if (!mapLook.equals(mapLook())) {
+      // rebuilds every tile, relief included
+      frame.getMapPanel().resetMap();
+    }
+  }
+
+  /** The values of the settings that change how the map looks. */
+  private static List<Object> mapLook() {
+    return List.of(
+        ClientSetting.unitFlagDrawMode.getValueOrThrow(),
+        TileImageFactory.getShowReliefImages(),
+        TileImageFactory.getShowMapBlends(),
+        MapImage.getPropertyMapFont(),
+        MapImage.getPropertyTerritoryNameAndPuAndCommentColor(),
+        MapImage.getPropertyUnitCountColor(),
+        MapImage.getPropertyUnitCountOutline(),
+        MapImage.getPropertyUnitFactoryDamageColor(),
+        MapImage.getPropertyUnitFactoryDamageOutline(),
+        MapImage.getPropertyUnitHitDamageColor(),
+        MapImage.getPropertyUnitHitDamageOutline());
   }
 
   private static JMenuItem addMenuItemWithHotkey(Action action, KeyCode keyCode) {
@@ -187,48 +216,26 @@ final class GameMenu {
         .build();
   }
 
-  private static JMenu getNotificationSettings(final TripleAFrame frame) {
-    final UiContext uiContext = frame.getUiContext();
-    final JCheckBoxMenuItem showEndOfTurnReport =
-        new JMenuItemCheckBoxBuilder("Show End of Turn Report", KeyCode.R)
-            .actionListener(uiContext::setShowEndOfTurnReport)
-            .build();
-    final JCheckBoxMenuItem showTriggeredNotifications =
-        new JMenuItemCheckBoxBuilder("Show Triggered Notifications", KeyCode.T)
-            .actionListener(uiContext::setShowTriggeredNotifications)
-            .build();
-    final JCheckBoxMenuItem showTriggerChanceSuccessful =
-        new JMenuItemCheckBoxBuilder("Show Trigger/Condition Chance Roll Successful", KeyCode.S)
-            .actionListener(uiContext::setShowTriggerChanceSuccessful)
-            .build();
-    final JCheckBoxMenuItem showTriggerChanceFailure =
-        new JMenuItemCheckBoxBuilder("Show Trigger/Condition Chance Roll Failure", KeyCode.F)
-            .actionListener(uiContext::setShowTriggerChanceFailure)
-            .build();
-    final JMenu notificationMenu =
-        new JMenuBuilder("User Notifications", Mnemonic.USER_NOTIFICATIONS.getMnemonicCode())
-            .addMenuItem(showEndOfTurnReport)
-            .addMenuItem(showTriggeredNotifications)
-            .addMenuItem(showTriggerChanceSuccessful)
-            .addMenuItem(showTriggerChanceFailure)
-            .build();
-    notificationMenu.addMenuListener(
-        new MenuListener() {
-          @Override
-          public void menuSelected(final MenuEvent e) {
-            showEndOfTurnReport.setSelected(uiContext.getShowEndOfTurnReport());
-            showTriggeredNotifications.setSelected(uiContext.getShowTriggeredNotifications());
-            showTriggerChanceSuccessful.setSelected(uiContext.getShowTriggerChanceSuccessful());
-            showTriggerChanceFailure.setSelected(uiContext.getShowTriggerChanceFailure());
-          }
-
-          @Override
-          public void menuDeselected(final MenuEvent e) {}
-
-          @Override
-          public void menuCanceled(final MenuEvent e) {}
-        });
-    return notificationMenu;
+  /** The same switches as in the Notifications of the settings; each ticks the setting itself. */
+  private static JMenu getNotificationSettings() {
+    return new JMenuBuilder("User Notifications", Mnemonic.USER_NOTIFICATIONS.getMnemonicCode())
+        .addMenuItem(
+            new JMenuItemCheckBoxBuilder("Show End of Turn Report", KeyCode.R)
+                .bindSetting(ClientSetting.showEndOfTurnReport)
+                .build())
+        .addMenuItem(
+            new JMenuItemCheckBoxBuilder("Show Triggered Notifications", KeyCode.T)
+                .bindSetting(ClientSetting.showTriggeredNotifications)
+                .build())
+        .addMenuItem(
+            new JMenuItemCheckBoxBuilder("Show Trigger/Condition Chance Roll Successful", KeyCode.S)
+                .bindSetting(ClientSetting.showTriggerChanceSuccessful)
+                .build())
+        .addMenuItem(
+            new JMenuItemCheckBoxBuilder("Show Trigger/Condition Chance Roll Failure", KeyCode.F)
+                .bindSetting(ClientSetting.showTriggerChanceFailure)
+                .build())
+        .build();
   }
 
   private static JMenuItem addShowDiceStats(final TripleAFrame frame) {

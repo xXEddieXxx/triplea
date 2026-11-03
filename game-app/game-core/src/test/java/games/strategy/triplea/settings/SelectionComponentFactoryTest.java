@@ -70,6 +70,21 @@ final class SelectionComponentFactoryTest {
         .isEqualTo("300 ms");
   }
 
+  @DisplayName("A slider shows a value saved outside its range at the nearest end")
+  @Test
+  void sliderClampsSavedValue() {
+    ClientSetting.aiMovePauseDuration.setValue(5000);
+
+    final JPanel panel =
+        (JPanel)
+            SelectionComponentFactory.intSlider(ClientSetting.aiMovePauseDuration, 0, 3000, "ms")
+                .getUiComponent();
+
+    assertThat(((JSlider) panel.getComponent(0)).getValue())
+        .as("a value saved by hand, eg, does not keep the settings from opening")
+        .isEqualTo(3000);
+  }
+
   @DisplayName("Closing the settings keeps a theme that is not in the list, eg of an older version")
   @Test
   void unknownThemeIsKept() {

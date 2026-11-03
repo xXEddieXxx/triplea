@@ -45,10 +45,10 @@ public class DiceServerEditor extends JPanel {
                       this,
                       new JLabel(
                           "<html><p style='width: 400px;'>"
-                              + "Enter your email address in the \"To\" field, and your "
-                              + "opponent's in the \"CC\" field. Click the register "
-                              + "button to register your email addresses, this must be done "
-                              + "to receive dice emails."
+                              + "The dice server rolls the dice of the game and mails every "
+                              + "roll to both addresses, so each player can check them. "
+                              + "Register each address once with Register before its first "
+                              + "game; the server mails only to registered addresses."
                               + "</p></html>"),
                       "Dice Server Help",
                       JOptionPane.INFORMATION_MESSAGE))
@@ -59,8 +59,9 @@ public class DiceServerEditor extends JPanel {
       JTextFieldBuilder.builder().maxLength(ADDRESS_FIELD_MAX_LENGTH).build();
   private final JTextField ccAddress =
       JTextFieldBuilder.builder().maxLength(ADDRESS_FIELD_MAX_LENGTH).build();
-  private final JLabel toLabel = new JLabel("To:");
-  private final JLabel ccLabel = new JLabel("Cc:");
+  private final JLabel toLabel = new JLabel("Your email");
+  // the dice server mails a second address only, not a list
+  private final JLabel ccLabel = new JLabel("The other player's email");
   private final Runnable readyCallback;
 
   public DiceServerEditor(final Runnable readyCallback) {
@@ -70,7 +71,7 @@ public class DiceServerEditor extends JPanel {
 
     final JPanel diceRollerOptions = new JPanel();
     diceRollerOptions.setLayout(new GridBagLayout());
-    diceRollerOptions.setBorder(new TitledBorder("Dice Server Options"));
+    diceRollerOptions.setBorder(new TitledBorder("Dice server"));
     add(diceRollerOptions);
 
     int row = 0;
@@ -235,9 +236,7 @@ public class DiceServerEditor extends JPanel {
     final boolean allValid = toValid && ccValid;
     testDiceButton.setEnabled(allValid);
     testDiceButton.setToolTipText(
-        allValid
-            ? "Send a verified dice roll test email"
-            : "First enter a valid 'to' and 'cc' email address");
+        allValid ? "Send a verified dice roll test email" : "First enter both email addresses");
 
     SwingUtilities.invokeLater(
         () -> {

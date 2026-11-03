@@ -38,7 +38,10 @@ final class FileMenu {
     return new JMenuBuilder("File", TripleAMenuBar.Mnemonic.FILE.getMnemonicCode())
         .addMenuItem(newSaveMenuItem(frame))
         .addMenuItemIf(
-            PbemMessagePoster.gameDataHasPlayByEmailOrForumMessengers(frame.getGame().getData()),
+            PbemMessagePoster.gameDataHasPlayByEmailOrForumMessengers(frame.getGame().getData())
+                // a game only watched has no player anywhere and posts nothing; a host whose
+                // players are all remote still may
+                && !frame.getGame().getPlayerManager().isEmpty(),
             () -> addPostPbem(frame))
         .addSeparator()
         .addMenuItem(

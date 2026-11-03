@@ -16,6 +16,7 @@ enum SettingGroup {
 
   LOOK("Look", SettingType.GRAPHICS),
   WINDOW("Window", SettingType.GRAPHICS),
+  MAP("Map", SettingType.GRAPHICS),
 
   SOUND("Sound", SettingType.AUDIO),
 

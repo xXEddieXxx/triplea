@@ -14,13 +14,13 @@ public enum SettingType {
   /** How a game plays: messages, battles, the computer players. */
   GAMEPLAY("Gameplay", "Messages, battles and how fast the computer plays."),
 
-  /** How TripleA looks: theme, text size, window. */
-  GRAPHICS("Graphics", "Theme, text size and the window."),
+  /** How TripleA looks: theme, text size, window, map. */
+  GRAPHICS("Graphics", "Theme, text size, the window and how the map looks."),
 
-  AUDIO("Audio", "Sound effects and which sounds play."),
+  AUDIO("Audio", "Sound effects, their volume and which sounds play."),
 
   /** Mouse and keyboard on the map: zoom and scrolling. */
-  CONTROLS("Controls", "How the map zooms and scrolls."),
+  CONTROLS("Controls", "How the map zooms, scrolls and follows the game."),
 
   ONLINE("Online & multiplayer", "Connection, chat and the accounts for email and forum games."),
 

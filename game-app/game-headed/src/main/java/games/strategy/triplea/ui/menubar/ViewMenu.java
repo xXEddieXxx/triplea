@@ -1,27 +1,19 @@
 package games.strategy.triplea.ui.menubar;
 
-import games.strategy.engine.data.properties.ColorProperty;
-import games.strategy.engine.data.properties.IEditableProperty;
-import games.strategy.engine.data.properties.NumberProperty;
-import games.strategy.engine.data.properties.PropertiesUi;
-import games.strategy.triplea.image.MapImage;
-import games.strategy.triplea.image.TileImageFactory;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.ui.FindTerritoryAction;
 import games.strategy.triplea.ui.FlagDrawMode;
+import games.strategy.triplea.ui.MapTextStyleEditor;
 import games.strategy.triplea.ui.TripleAFrame;
 import games.strategy.triplea.ui.UiContext;
 import games.strategy.triplea.ui.mapdata.MapData;
 import games.strategy.triplea.ui.screen.UnitsDrawer;
 import java.awt.BorderLayout;
-import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
-import java.util.List;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonGroup;
@@ -215,26 +207,15 @@ final class ViewMenu {
 
   private static JCheckBoxMenuItem getShowMapBlends(final TripleAFrame frame) {
     final String menuButtonText = "Show Map Blends";
-    final JCheckBoxMenuItem showMapBlends = new JCheckBoxMenuItem(menuButtonText);
-    showMapBlends.setMnemonic(Mnemonic.SHOW_MAP_BLENDS.getValue());
-    final MapData mapData = frame.getUiContext().getMapData();
-    if (mapData.getHasRelief() && showMapDetails.isEnabled() && showMapDetails.isSelected()) {
-      showMapBlends.setEnabled(true);
-      showMapBlends.setSelected(TileImageFactory.getShowMapBlends());
-    } else {
-      showMapBlends.setSelected(false);
-      showMapBlends.setEnabled(false);
-    }
-    showMapBlends.addActionListener(
-        e -> {
-          if (TileImageFactory.getShowMapBlends() == showMapBlends.isSelected()) {
-            return;
-          }
-          TileImageFactory.setShowMapBlends(showMapBlends.isSelected());
-          TileImageFactory.setShowMapBlendMode(mapData.getMapBlendMode());
-          TileImageFactory.setShowMapBlendAlpha(mapData.getMapBlendAlpha());
-          updateCountriesInNewThread(frame, menuButtonText);
-        });
+    // the tick is the setting, also after the settings window changed it; blends need relief
+    final JCheckBoxMenuItem showMapBlends =
+        new JMenuItemCheckBoxBuilder(menuButtonText, Mnemonic.SHOW_MAP_BLENDS.getMnemonicCode())
+            .bindSetting(ClientSetting.showMapBlends)
+            .actionListener(isSelected -> updateCountriesInNewThread(frame, menuButtonText))
+            .build();
+    showMapBlends.setEnabled(
+        frame.getUiContext().getMapData().getHasRelief()
+            && ClientSetting.showReliefImages.getSetting());
     return showMapBlends;
   }
 
@@ -274,95 +255,7 @@ final class ViewMenu {
 
   private static JMenuItem getMapFontAndColorEditorMenu(final TripleAFrame frame) {
     return new JMenuItemBuilder("Map Font and Color", Mnemonic.MAP_FONT_OPTIONS.getMnemonicCode())
-        .actionListener(
-            () -> {
-              final List<IEditableProperty<?>> properties = new ArrayList<>();
-              final NumberProperty fontSize =
-                  new NumberProperty(
-                      "Font Size", null, 60, 0, MapImage.getPropertyMapFont().getSize());
-              final ColorProperty territoryNameColor =
-                  new ColorProperty(
-                      "Territory Name and PU Color",
-                      null,
-                      MapImage.getPropertyTerritoryNameAndPuAndCommentColor());
-              final ColorProperty unitCountColor =
-                  new ColorProperty("Unit Count Color", null, MapImage.getPropertyUnitCountColor());
-              final ColorProperty unitCountOutline =
-                  new ColorProperty(
-                      "Unit Count Outline", null, MapImage.getPropertyUnitCountOutline());
-              final ColorProperty factoryDamageColor =
-                  new ColorProperty(
-                      "Factory Damage Color", null, MapImage.getPropertyUnitFactoryDamageColor());
-              final ColorProperty factoryDamageOutline =
-                  new ColorProperty(
-                      "Factory Damage Outline",
-                      null,
-                      MapImage.getPropertyUnitFactoryDamageOutline());
-              final ColorProperty hitDamageColor =
-                  new ColorProperty(
-                      "Hit Damage Color", null, MapImage.getPropertyUnitHitDamageColor());
-              final ColorProperty hitDamageOutline =
-                  new ColorProperty(
-                      "Hit Damage Outline", null, MapImage.getPropertyUnitHitDamageOutline());
-              properties.add(fontSize);
-              properties.add(territoryNameColor);
-              properties.add(unitCountColor);
-              properties.add(unitCountOutline);
-              properties.add(factoryDamageColor);
-              properties.add(factoryDamageOutline);
-              properties.add(hitDamageColor);
-              properties.add(hitDamageOutline);
-              final PropertiesUi pui = new PropertiesUi(properties, true);
-              final JPanel ui = new JPanel();
-              ui.setLayout(new BorderLayout());
-              ui.add(PropertiesUi.newScrollableView(pui), BorderLayout.CENTER);
-              ui.add(
-                  new JLabel(
-                      "<html>Change the font and color of 'text' (not pictures) on the map. "
-                          + "<br /><em>(Some people encounter problems with the color picker, "
-                          + "and this "
-                          + "<br />is a bug outside of TripleA, located in the 'look and feel' "
-                          + "that "
-                          + "<br />you are using. If you have an error come up, try switching to "
-                          + "the "
-                          + "<br />basic 'look and feel', then setting the color, then switching "
-                          + "back.)</em></html>"),
-                  BorderLayout.NORTH);
-              final Object[] options = {"Set Properties", "Reset To Default", "Cancel"};
-              final int result =
-                  JOptionPane.showOptionDialog(
-                      frame,
-                      ui,
-                      "Map Font and Color",
-                      JOptionPane.YES_NO_CANCEL_OPTION,
-                      JOptionPane.PLAIN_MESSAGE,
-                      null,
-                      options,
-                      2);
-              if (result == 1) {
-                MapImage.resetPropertyMapFont();
-                MapImage.resetPropertyTerritoryNameAndPuAndCommentColor();
-                MapImage.resetPropertyUnitCountColor();
-                MapImage.resetPropertyUnitCountOutline();
-                MapImage.resetPropertyUnitFactoryDamageColor();
-                MapImage.resetPropertyUnitFactoryDamageOutline();
-                MapImage.resetPropertyUnitHitDamageColor();
-                MapImage.resetPropertyUnitHitDamageOutline();
-                frame.getMapPanel().resetMap();
-              } else if (result == 0) {
-                MapImage.setPropertyMapFont(
-                    new Font(MapImage.FONT_FAMILY_DEFAULT, Font.BOLD, fontSize.getValue()));
-                MapImage.setPropertyTerritoryNameAndPuAndCommentColor(
-                    territoryNameColor.getValue());
-                MapImage.setPropertyUnitCountColor(unitCountColor.getValue());
-                MapImage.setPropertyUnitCountOutline(unitCountOutline.getValue());
-                MapImage.setPropertyUnitFactoryDamageColor(factoryDamageColor.getValue());
-                MapImage.setPropertyUnitFactoryDamageOutline(factoryDamageOutline.getValue());
-                MapImage.setPropertyUnitHitDamageColor(hitDamageColor.getValue());
-                MapImage.setPropertyUnitHitDamageOutline(hitDamageOutline.getValue());
-                frame.getMapPanel().resetMap();
-              }
-            })
+        .actionListener(() -> MapTextStyleEditor.show(frame, () -> frame.getMapPanel().resetMap()))
         .build();
   }
 
@@ -492,15 +385,8 @@ final class ViewMenu {
     final String menuItemText = "Show Map Details";
     showMapDetails =
         new JMenuItemCheckBoxBuilder(menuItemText, Mnemonic.SHOW_MAP_DETAILS.getMnemonicCode())
-            .selected(TileImageFactory.getShowReliefImages())
-            .actionListener(
-                isSelected -> {
-                  if (TileImageFactory.getShowReliefImages() == Boolean.TRUE.equals(isSelected)) {
-                    return;
-                  }
-                  TileImageFactory.setShowReliefImages(isSelected);
-                  updateCountriesInNewThread(frame, menuItemText);
-                })
+            .bindSetting(ClientSetting.showReliefImages)
+            .actionListener(isSelected -> updateCountriesInNewThread(frame, menuItemText))
             .build();
 
     showMapDetails.setEnabled(frame.getUiContext().getMapData().getHasRelief());

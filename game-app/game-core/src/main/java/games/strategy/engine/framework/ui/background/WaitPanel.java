@@ -9,9 +9,11 @@ import javax.swing.border.EmptyBorder;
 class WaitPanel extends JPanel {
   private static final long serialVersionUID = -8625021554802312498L;
 
+  private final JLabel label;
+
   WaitPanel(final String waitMessage) {
     setLayout(new BorderLayout());
-    final JLabel label = new JLabel(waitMessage);
+    label = new JLabel(waitMessage);
     label.setBorder(new EmptyBorder(10, 10, 10, 10));
     add(BorderLayout.NORTH, label);
     final int min = 0;
@@ -20,5 +22,9 @@ class WaitPanel extends JPanel {
     progress.setBorder(new EmptyBorder(10, 10, 10, 10));
     add(progress, BorderLayout.CENTER);
     progress.setIndeterminate(true);
+  }
+
+  void setMessage(final String message) {
+    label.setText(message);
   }
 }

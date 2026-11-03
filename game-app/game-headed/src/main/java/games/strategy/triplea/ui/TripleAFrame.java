@@ -2,6 +2,7 @@ package games.strategy.triplea.ui;
 
 import static games.strategy.triplea.image.UnitImageFactory.ImageKey;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.chat.Chat;
 import games.strategy.engine.chat.ChatMessagePanel.ChatSoundProfile;
@@ -38,6 +39,7 @@ import games.strategy.engine.history.HistoryNode;
 import games.strategy.engine.history.Round;
 import games.strategy.engine.history.Step;
 import games.strategy.engine.player.PlayerBridge;
+import games.strategy.engine.posted.game.pbem.OpponentQuestion;
 import games.strategy.engine.random.PbemDiceRoller;
 import games.strategy.triplea.EngineImageLoader;
 import games.strategy.triplea.Properties;
@@ -94,7 +96,10 @@ import java.awt.GridBagLayout;
 import java.awt.HeadlessException;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.KeyboardFocusManager;
+import java.awt.Taskbar;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -1159,21 +1164,21 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     }
     if (title.contains(AbstractConditionsAttachment.TRIGGER_CHANCE_FAILURE)
         && message.contains(AbstractConditionsAttachment.TRIGGER_CHANCE_FAILURE)
-        && !getUiContext().getShowTriggerChanceFailure()) {
+        && !ClientSetting.showTriggerChanceFailure.getSetting()) {
       return;
     }
     if (title.contains(AbstractConditionsAttachment.TRIGGER_CHANCE_SUCCESSFUL)
         && message.contains(AbstractConditionsAttachment.TRIGGER_CHANCE_SUCCESSFUL)
-        && !getUiContext().getShowTriggerChanceSuccessful()) {
+        && !ClientSetting.showTriggerChanceSuccessful.getSetting()) {
       return;
     }
     if (title.equals(AbstractTriggerAttachment.NOTIFICATION)
-        && !getUiContext().getShowTriggeredNotifications()) {
+        && !ClientSetting.showTriggeredNotifications.getSetting()) {
       return;
     }
     if (title.contains(AbstractEndTurnDelegate.END_TURN_REPORT_STRING)
         && message.contains(AbstractEndTurnDelegate.END_TURN_REPORT_STRING)
-        && !getUiContext().getShowEndOfTurnReport()) {
+        && !ClientSetting.showEndOfTurnReport.getSetting()) {
       return;
     }
     final String displayMessage =
@@ -1182,8 +1187,10 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
   }
 
   /**
-   * Prompts the user to select the units that may participate in a suicide attack.
+   * Prompts the user to select the units that may participate in a suicide attack. In a game by
+   * forum or email where it is the opponent's decision, the question may be posted to the opponent.
    *
+   * @param decider The player whose suicide attacks they are.
    * @param possibleUnitsToAttack The possible units that may participate in the suicide attack from
    *     which the user may select.
    * @param attackResourceToken The resource that is expended to conduct the suicide attack.
@@ -1192,6 +1199,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
    *     from which they are attacking.
    */
   public Map<Territory, IntegerMap<Unit>> selectKamikazeSuicideAttacks(
+      final GamePlayer decider,
       final Map<Territory, Collection<Unit>> possibleUnitsToAttack,
       final Resource attackResourceToken,
       final int maxNumberOfAttacksAllowed) {
@@ -1225,7 +1233,20 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           unitPanels.add(unitPanel);
           final String optionAttack = "Attack";
           final String optionNone = "None";
-          final Object[] options = {optionAttack, optionNone};
+          final Object[] options =
+              new OpponentQuestion(game, this)
+                  .newAskButton(
+                      decider,
+                      () ->
+                          "do you make suicide attacks using "
+                              + attackResourceToken.getName()
+                              + ", at most "
+                              + maxNumberOfAttacksAllowed
+                              + "? Possible targets: "
+                              + unitsText(possibleUnitsToAttack, " in ")
+                              + ".")
+                  .<Object[]>map(ask -> new Object[] {optionAttack, optionNone, ask})
+                  .orElseGet(() -> new Object[] {optionAttack, optionNone});
           final JOptionPane optionPane =
               new JOptionPane(
                   unitPanel,
@@ -1283,6 +1304,21 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     return selection;
   }
 
+  /**
+   * The units of each territory for a question, eg "2 battleships in Sea Zone 6; 1 carrier in Sea
+   * Zone 7" with " in ".
+   */
+  private static String unitsText(
+      final Map<Territory, Collection<Unit>> unitsByTerritory, final String preposition) {
+    return unitsByTerritory.entrySet().stream()
+        .map(
+            entry ->
+                MyFormatter.unitsToTextNoOwner(entry.getValue())
+                    + preposition
+                    + entry.getKey().getName())
+        .collect(Collectors.joining("; "));
+  }
+
   private Map<String, Collection<Unit>> getPossibleUnitsToAttackFromTerritoryName(
       Map<Territory, Collection<Unit>> possibleUnitsToAttack) {
     final Map<String, Collection<Unit>> possibleUnitsToAttackFromTerritoryName = new HashMap<>();
@@ -1316,8 +1352,10 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
 
   /**
    * Prompts the user to select units which will participate in a scramble to the specified
-   * territory.
+   * territory. In a game by forum or email where it is the opponent's decision, the question may be
+   * posted to the opponent.
    *
+   * @param decider The player who scrambles.
    * @param scrambleTo The territory to which units are to be scrambled.
    * @param possibleScramblers The possible units that may participate in the scramble from which
    *     the user may select.
@@ -1325,6 +1363,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
    *     which they are scrambling.
    */
   public Map<Territory, Collection<Unit>> scrambleUnitsQuery(
+      final GamePlayer decider,
       final Territory scrambleTo,
       final Map<Territory, Tuple<Collection<Unit>, Collection<Unit>>> possibleScramblers) {
     messageAndDialogThreadPool.waitForAll();
@@ -1345,7 +1384,24 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           final JButton noneButton = new JButton("None");
           noneButton.addActionListener(
               e -> getOptionPane((JComponent) e.getSource()).setValue(noneButton));
-          final Object[] options = {scrambleButton, noneButton};
+          final Object[] options =
+              new OpponentQuestion(game, this)
+                  .newAskButton(
+                      decider,
+                      () ->
+                          "do you scramble to "
+                              + scrambleTo.getName()
+                              + "? You may scramble "
+                              + unitsText(
+                                  possibleScramblers.entrySet().stream()
+                                      .collect(
+                                          Collectors.toMap(
+                                              Map.Entry::getKey,
+                                              entry -> entry.getValue().getSecond())),
+                                  " from ")
+                              + ".")
+                  .<Object[]>map(ask -> new Object[] {scrambleButton, noneButton, ask})
+                  .orElseGet(() -> new Object[] {scrambleButton, noneButton});
           final JOptionPane optionPane =
               new JOptionPane(
                   panel,
@@ -1785,6 +1841,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     if (play != null && play) {
       uiContext.getClipPlayer().play(SoundPath.CLIP_REQUIRED_YOUR_TURN_SERIES, player);
       requiredTurnSeries.put(player, false);
+      alertIfInBackground();
     }
     final int round;
     try (GameData.Unlocker ignored = data.acquireReadLock()) {
@@ -1801,6 +1858,25 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
         mapPanel.repaint();
       }
     }
+  }
+
+  /**
+   * Flashes the game in the taskbar while the player works in another program, if the settings say
+   * so and the system can; the turn has come back to them. A TripleA dialog, eg a battle, counts as
+   * TripleA.
+   */
+  private void alertIfInBackground() {
+    if (isAlertWanted(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow())
+        && Taskbar.isTaskbarSupported()
+        && Taskbar.getTaskbar().isSupported(Taskbar.Feature.USER_ATTENTION_WINDOW)) {
+      Taskbar.getTaskbar().requestWindowUserAttention(this);
+    }
+  }
+
+  /** Whether the settings want the alert and no window of TripleA is the active one. */
+  @VisibleForTesting
+  static boolean isAlertWanted(final @Nullable Window activeWindow) {
+    return ClientSetting.alertOnMyTurn.getSetting() && activeWindow == null;
   }
 
   private String getUnitInfo() {

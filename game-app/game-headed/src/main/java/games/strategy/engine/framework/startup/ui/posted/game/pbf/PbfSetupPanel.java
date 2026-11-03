@@ -14,12 +14,17 @@ import games.strategy.engine.framework.startup.ui.PlayerTypes;
 import games.strategy.engine.framework.startup.ui.SetupPanel;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
 import games.strategy.engine.framework.startup.ui.posted.game.DiceServerEditor;
+import games.strategy.engine.framework.ui.background.BackgroundTaskRunner;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.RefusedException;
 import games.strategy.engine.random.PbemDiceRoller;
 import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.GridBagLayout;
 import java.awt.Window;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -114,18 +119,7 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
     // Empty border works as margin
     setBorder(new EmptyBorder(10, 10, 10, 10));
     int row = 0;
-    add(
-        diceServerEditor,
-        new GridBagConstraintsBuilder(0, row++)
-            .gridWidth(1)
-            .gridHeight(1)
-            .weightX(1.0)
-            .weightY(0.0)
-            .anchor(GridBagConstraintsAnchor.NORTHWEST)
-            .fill(GridBagConstraintsFill.HORIZONTAL)
-            .insets(10, 0, 20, 0)
-            .build());
-
+    // the forum first: where the game is played
     final JTabbedPane tabbedPane = new JTabbedPane();
     add(
         tabbedPane,
@@ -141,6 +135,18 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
     tabbedPane.addTab(
         I18nEngineFramework.get().getText("startup.PbfSetupPanel.tab.ForumPosterEditor.Lbl"),
         forumPosterEditor);
+
+    add(
+        diceServerEditor,
+        new GridBagConstraintsBuilder(0, row++)
+            .gridWidth(1)
+            .gridHeight(1)
+            .weightX(1.0)
+            .weightY(0.0)
+            .anchor(GridBagConstraintsAnchor.NORTHWEST)
+            .fill(GridBagConstraintsFill.HORIZONTAL)
+            .insets(10, 0, 20, 0)
+            .build());
 
     // add selection of local players
     add(
@@ -180,11 +186,13 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
 
   private void loadAll() {
     Optional.ofNullable(gameSelectorModel.getGameData())
-        .map(GameState::getProperties)
         .ifPresent(
-            properties -> {
-              diceServerEditor.populateFromGameProperties(properties);
-              forumPosterEditorViewModel.populateFromGameProperties(properties);
+            data -> {
+              diceServerEditor.populateFromGameProperties(data.getProperties());
+              // before the properties, whose view update shows it
+              forumPosterEditorViewModel.setNewThreadTitle(
+                  ForumPosterEditorViewModel.newThreadTitleOf(data));
+              forumPosterEditorViewModel.populateFromGameProperties(data.getProperties());
             });
   }
 
@@ -216,14 +224,14 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
     if (diceServerEditor.areFieldsValid()) {
       diceServerEditor.applyToGameProperties(data.getProperties());
     }
-    if (forumPosterEditorViewModel.areFieldsValid()) {
+    // none when the new thread was not started: the game did not start either
+    final Optional<Integer> topicId = forumPosterEditorViewModel.getThreadTopicId();
+    if (forumPosterEditorViewModel.areFieldsValid() && topicId.isPresent()) {
       final GameProperties properties = data.getProperties();
       properties.set(
           IForumPoster.NAME, //
           forumPosterEditorViewModel.getForumSelection());
-      properties.set(
-          IForumPoster.TOPIC_ID, //
-          Integer.parseInt(forumPosterEditorViewModel.getTopicId()));
+      properties.set(IForumPoster.TOPIC_ID, topicId.get());
       properties.set(
           IForumPoster.POST_AFTER_COMBAT, forumPosterEditorViewModel.isAlsoPostAfterCombatMove());
       properties.set(
@@ -256,6 +264,10 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
             + "this error indicates a programming bug that allowed for the start game button to be "
             + "enabled without first valid game data being loaded. ");
 
+    if (forumPosterEditorViewModel.isNewThread() && !startThread()) {
+      // stays on this screen, which tells what to do
+      return Optional.empty();
+    }
     forumPosterEditor.requestToken();
     if (forumPosterEditor.shouldRevokeTokenOnShutdown()) {
       ExitStatus.addExitAction(forumPosterEditor::revokeToken);
@@ -288,5 +300,87 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
             this,
             new HeadedLaunchAction(this),
             new PlayerTypes(HeadedPlayerTypes.getPlayerTypes())));
+  }
+
+  /**
+   * Starts the game's thread in the forum, a wait window meanwhile; its number is the game's from
+   * now on. Tells the player why there is none, eg the forum holds it back for a moderator.
+   *
+   * @return whether the game has its thread now
+   */
+  private boolean startThread() {
+    final Optional<NodeBbGameThreads> session = forumPosterEditorViewModel.newSessionClient();
+    if (session.isEmpty()) {
+      // eg the Play by forum page found meanwhile that the sign-in ran out
+      JOptionPane.showMessageDialog(
+          this,
+          "You are no longer signed in. Sign in again on Multiplayer > Play by forum.",
+          "No thread started",
+          JOptionPane.WARNING_MESSAGE);
+      return false;
+    }
+    final NodeBbGameThreads forum = session.get();
+    final String title = forumPosterEditorViewModel.getNewThreadTitle().strip();
+    final String firstPost =
+        ForumPosterEditorViewModel.firstPostOf(gameSelectorModel.getGameData());
+    try {
+      final Optional<GameThread> thread =
+          BackgroundTaskRunner.runInBackgroundAndReturn(
+              "Starting the game's thread in the forum...",
+              () -> forum.startThread(title, firstPost),
+              null,
+              IOException.class);
+      if (thread.isEmpty()) {
+        // the thread has no number until it shows: the game would post nowhere
+        forumPosterEditorViewModel.useExistingThread("");
+        JOptionPane.showMessageDialog(
+            this,
+            "<html><p style='width: 400px;'>The forum holds the new thread back until a moderator"
+                + " approved it, as it does for new members. The game has not started.<br/><br/>"
+                + "Once the thread shows in the forum, paste its address into \"Thread address or"
+                + " number\" and start the game again.</p></html>",
+            "The thread waits for a moderator",
+            JOptionPane.INFORMATION_MESSAGE);
+        return false;
+      }
+      forumPosterEditorViewModel.useExistingThread(String.valueOf(thread.get().topicId()));
+      return true;
+    } catch (final RefusedException e) {
+      // the forum said no: no thread, and starting again starts one when the cause is gone
+      JOptionPane.showMessageDialog(
+          this,
+          "The forum did not start the game's thread: "
+              + e.getMessage()
+              + "\nIf your sign-in ran out, sign in again on Multiplayer > Play by forum.",
+          "No thread started",
+          JOptionPane.ERROR_MESSAGE);
+      return false;
+    } catch (final IOException e) {
+      maybeStarted(
+          "The forum did not answer as expected: "
+              + e.getMessage()
+              + "\nIf your sign-in ran out, sign in again on Multiplayer > Play by forum.");
+      return false;
+    } catch (final InterruptedException expected) {
+      // the wait window's Cancel, on the EDT: its interrupt is no news for the EDT
+      maybeStarted("Starting the thread was cancelled.");
+      return false;
+    }
+  }
+
+  /**
+   * The forum may have started the thread all the same, eg its answer came too late: so no second
+   * one, the player looks first and then takes it or starts a new one on purpose.
+   */
+  private void maybeStarted(final String what) {
+    forumPosterEditorViewModel.useExistingThread("");
+    JOptionPane.showMessageDialog(
+        this,
+        what
+            + "\n\nThe forum may have started the thread anyway. Look for it under My games or in"
+            + " the forum: if it is there, paste its address into \"Thread address or number\";"
+            + " if not, choose \"Start a new thread\" and start the game again.",
+        "No thread started",
+        JOptionPane.WARNING_MESSAGE);
   }
 }

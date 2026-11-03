@@ -25,7 +25,7 @@
           <versionLine x="144" y="22" text="version ${compiler:sys.version}" />
         </text>
       </splashScreen>
-      <java mainClass="org.triplea.game.client.HeadedGameRunner">
+      <java mainClass="org.triplea.game.client.HeadedGameRunner" vmParameters="--add-opens=java.desktop/sun.awt=ALL-UNNAMED --add-opens=java.desktop/sun.lwawt=ALL-UNNAMED --add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED">
         <classPath>
           <scanDirectory location="bin" failOnError="false" />
         </classPath>

@@ -54,19 +54,13 @@ final class LoadingPlaceholder extends JComponent {
     return new LoadingPlaceholder(bars, 12, width);
   }
 
-  /** A picture with a name and a line below it, eg the map of the day. */
-  static LoadingPlaceholder newPicture(final int width, final int pictureHeight) {
-    return new LoadingPlaceholder(
-        List.of(new Bar(0.74, pictureHeight), new Bar(0.4, 24), new Bar(0.6, 14)), 14, width);
-  }
-
   @Override
   protected void paintComponent(final Graphics g) {
     final Graphics2D g2 = (Graphics2D) g.create();
     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     final Color text = UIManager.getColor("Label.foreground");
     // a faint tint of the text color is visible on dark and light themes alike
-    g2.setColor(text == null ? new Color(128, 128, 128, 40) : MenuEntry.withAlpha(text, 26));
+    g2.setColor(text == null ? new Color(128, 128, 128, 40) : MenuColors.withAlpha(text, 26));
     int y = 0;
     for (final Bar bar : bars) {
       g2.fillRoundRect(0, y, (int) (getWidth() * bar.widthShare()), bar.height(), ARC, ARC);

@@ -268,7 +268,9 @@ final class SelectionComponentFactory {
    */
   static SelectionComponent<JComponent> intSlider(
       final ClientSetting<Integer> clientSetting, final int lo, final int hi, final String unit) {
-    final JSlider slider = new JSlider(lo, hi, clientSetting.getValue().orElse(lo));
+    // a value saved outside the range, eg by hand, would make the slider throw
+    final JSlider slider =
+        new JSlider(lo, hi, Math.clamp(clientSetting.getValue().orElse(lo), lo, hi));
     // a wide range moves in round steps, so a value like 600 s can be hit with mouse and keys
     slider.setMinorTickSpacing(sliderStep(hi - lo));
     slider.setSnapToTicks(true);

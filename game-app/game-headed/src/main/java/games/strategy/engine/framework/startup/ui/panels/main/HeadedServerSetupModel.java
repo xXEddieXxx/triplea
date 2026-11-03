@@ -5,6 +5,7 @@ import static games.strategy.engine.framework.CliProperties.SERVER_PASSWORD;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.data.GameData;
+import games.strategy.engine.framework.startup.launcher.LocalLauncher;
 import games.strategy.engine.framework.startup.login.ClientLoginValidator;
 import games.strategy.engine.framework.startup.mc.ClientModel;
 import games.strategy.engine.framework.startup.mc.HeadedLaunchAction;
@@ -104,6 +105,21 @@ public class HeadedServerSetupModel {
       showPbem();
     } else {
       showLocal();
+    }
+  }
+
+  /**
+   * Opens a saved game to look at only ({@link LocalLauncher#newViewer}), eg another's game of the
+   * forum: nobody plays and nothing is posted. If the save does not load, the current screen stays.
+   */
+  public void viewSavedGame(final Path save) {
+    if (saveGameLoader.test(save)) {
+      MainPanelBuilder.launch(
+          ui,
+          LocalLauncher.newViewer(gameSelectorModel, ui, new HeadedLaunchAction(ui)),
+          gameSelectorModel,
+          // the other player's save leaves the selection, as after watching
+          gameSelectorModel::onGameEnded);
     }
   }
 

@@ -220,27 +220,15 @@ class DummyPlayer extends AbstractAi {
         killedUnits.add(notKilledAndNotLand.get(0));
       }
     }
-    if (orderOfLosses != null && !orderOfLosses.isEmpty() && !killedUnits.isEmpty()) {
-      final List<Unit> orderOfLosses = new ArrayList<>(this.orderOfLosses);
-      orderOfLosses.retainAll(selectFrom);
-      if (!orderOfLosses.isEmpty()) {
-        int killedSize = killedUnits.size();
-        killedUnits.clear();
-        while (killedSize > 0 && !orderOfLosses.isEmpty()) {
-          killedUnits.add(orderOfLosses.get(0));
-          orderOfLosses.remove(0);
-          killedSize--;
-        }
-        if (killedSize > 0) {
-          final List<Unit> defaultKilled = new ArrayList<>(defaultCasualties.getKilled());
-          defaultKilled.removeAll(killedUnits);
-          while (killedSize > 0) {
-            killedUnits.add(defaultKilled.get(0));
-            defaultKilled.remove(0);
-            killedSize--;
-          }
-        }
-      }
+    if (orderOfLosses != null
+        && !orderOfLosses.isEmpty()
+        && !killedUnits.isEmpty()
+        && orderOfLosses.stream().anyMatch(selectFrom::contains)) {
+      return new CasualtyDetails(
+          OrderOfLosses.killedInOrder(
+              orderOfLosses, selectFrom, killedUnits.size(), defaultCasualties.getKilled()),
+          damagedUnits,
+          false);
     }
     return new CasualtyDetails(killedUnits, damagedUnits, false);
   }

@@ -1,5 +1,6 @@
 package games.strategy.triplea.image;
 
+import games.strategy.triplea.ui.mapdata.MapData;
 import java.awt.Composite;
 import java.awt.CompositeContext;
 import java.awt.RenderingHints;
@@ -7,10 +8,13 @@ import java.awt.image.ColorModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
+import java.util.Locale;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /** This class handles the various types of blends for base/relief tiles. */
 @Getter
+@Slf4j
 class BlendComposite implements Composite {
   public enum BlendingMode {
     NORMAL,
@@ -20,31 +24,32 @@ class BlendComposite implements Composite {
     LINEAR_LIGHT
   }
 
-  private float alpha;
+  private final float alpha;
   private final BlendingMode mode;
 
-  BlendComposite(final BlendingMode mode) {
-    this(mode, 1.0f);
-  }
-
   private BlendComposite(final BlendingMode mode, final float alpha) {
-    this.mode = mode;
-    setAlpha(alpha);
-  }
-
-  public static BlendComposite getInstance(final BlendingMode mode) {
-    return new BlendComposite(mode);
-  }
-
-  public BlendComposite derive(final float alpha) {
-    return this.alpha == alpha ? this : new BlendComposite(getMode(), alpha);
-  }
-
-  private void setAlpha(final float alpha) {
-    if (alpha < 0.0f || alpha > 1.0f) {
+    // written so that NaN fails too
+    if (!(alpha >= 0.0f && alpha <= 1.0f)) {
       throw new IllegalArgumentException("alpha must be comprised between 0.0f and 1.0f");
     }
+    this.mode = mode;
     this.alpha = alpha;
+  }
+
+  /**
+   * The blend the map's properties ask for; a mode or strength they cannot mean, eg "screen", "0,5"
+   * or "1.5", blends normally at half strength instead, so the relief still shows.
+   */
+  static BlendComposite newForMap(final MapData mapData) {
+    try {
+      return new BlendComposite(
+          BlendingMode.valueOf(mapData.getMapBlendMode().strip().toUpperCase(Locale.ENGLISH)),
+          mapData.getMapBlendAlpha());
+    } catch (final IllegalArgumentException e) {
+      // also a NumberFormatException; for map makers, so not shown to the player
+      log.info("Invalid map.mapBlendMode or map.mapBlendAlpha, blending normally", e);
+      return new BlendComposite(BlendingMode.NORMAL, 0.5f);
+    }
   }
 
   @Override

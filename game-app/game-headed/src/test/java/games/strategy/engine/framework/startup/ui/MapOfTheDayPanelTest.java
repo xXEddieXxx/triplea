@@ -7,6 +7,10 @@ import games.strategy.engine.framework.map.file.system.loader.InstalledMap;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListing;
 import games.strategy.engine.framework.startup.ui.MapOfTheDayPanel.FeaturedMap;
 import games.strategy.triplea.settings.ClientSetting;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +28,9 @@ import org.triplea.map.description.file.MapDescriptionYaml;
 import org.triplea.map.description.file.MapDescriptionYaml.MapGame;
 
 final class MapOfTheDayPanelTest {
+  private static final Dimension STAGE = new Dimension(800, 400);
+  private static final Color WINDOW = new Color(20, 19, 24);
+
   @TempDir Path mapsFolder;
 
   @BeforeEach
@@ -157,5 +164,87 @@ final class MapOfTheDayPanelTest {
         .satisfies(days -> assertThat(days.get(0)).isEqualTo(days.get(1)))
         .satisfies(days -> assertThat(days.get(2)).isEqualTo((days.get(0) + 1) % 5))
         .allMatch(index -> index >= 0 && index < 5);
+  }
+
+  @DisplayName("A picture wider than the largest stage is scaled down when read, others stay")
+  @Test
+  void widePicturesAreLimited() {
+    final BufferedImage wide = new BufferedImage(5120, 2000, BufferedImage.TYPE_INT_RGB);
+    final BufferedImage small = new BufferedImage(800, 400, BufferedImage.TYPE_INT_RGB);
+
+    assertThat(MapOfTheDayPanel.limited(wide))
+        .as("the proportions stay: 5120 x 2000 becomes 2560 x 1000")
+        .extracting(BufferedImage::getWidth, BufferedImage::getHeight)
+        .containsExactly(2560, 1000);
+    assertThat(MapOfTheDayPanel.limited(small))
+        .as("a picture that is small enough is not scaled at all")
+        .isSameAs(small);
+  }
+
+  @DisplayName("A small picture is enlarged at most twice, a large one just enough to cover")
+  @Test
+  void smallPicturesAreEnlargedAtMostTwice() {
+    assertThat(
+            List.of(
+                MapOfTheDayPanel.pictureScale(400, 200, 1600, 600),
+                MapOfTheDayPanel.pictureScale(1280, 600, 1600, 600)))
+        .as("400 px would need 4 times for 1600 px and gets 2, 1280 px gets the 1.25 it needs")
+        .containsExactly(2.0, 1.25);
+  }
+
+  @DisplayName("The stage fades into the window's color at its left edge, the picture shows beside")
+  @Test
+  void stageFadesIntoMenu() {
+    final BufferedImage stage = paintedStage(givenWhitePicture(400, 200), STAGE.height);
+
+    assertThat(new Color(stage.getRGB(0, 200)))
+        .as("no seam to the menu: the left edge is the window's color")
+        .isEqualTo(WINDOW);
+    assertThat(new Color(stage.getRGB(600, 120)).getRed())
+        .as("right of the shade the dimmed picture shows")
+        .isGreaterThan(100);
+  }
+
+  @DisplayName("A picture too small for the stage sits on a blurred copy of itself")
+  @Test
+  void smallPictureSitsOnBlurredCopy() {
+    final BufferedImage stage = paintedStage(givenWhitePicture(200, 100), STAGE.height);
+
+    assertThat(new Color(stage.getRGB(700, 120)).getRed())
+        .as("the picture, enlarged twice to 400 px, ends at 600; right of it the dimmed blur shows")
+        .isGreaterThan(50);
+  }
+
+  @DisplayName("Below the floor's edge the news panels lie on an almost plain ground")
+  @Test
+  void floorIsAlmostPlain() {
+    final BufferedImage stage = paintedStage(givenWhitePicture(400, 200), 240);
+
+    assertThat(new Color(stage.getRGB(600, 80)).getRed())
+        .as("above the floor's shade the dimmed picture shows")
+        .isGreaterThan(100);
+    assertThat(new Color(stage.getRGB(600, 320)).getRed())
+        .as("below the floor's edge at 240 the picture barely shows through the window's color")
+        .isLessThan(WINDOW.getRed() + 16);
+  }
+
+  private static BufferedImage givenWhitePicture(final int width, final int height) {
+    final BufferedImage picture = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    final Graphics2D g2 = picture.createGraphics();
+    g2.setColor(Color.WHITE);
+    g2.fillRect(0, 0, width, height);
+    g2.dispose();
+    return picture;
+  }
+
+  /** The stage painted with the picture in the size of {@link #STAGE} on a dark window. */
+  private static BufferedImage paintedStage(final BufferedImage picture, final int floor) {
+    final BufferedImage stage =
+        new BufferedImage(STAGE.width, STAGE.height, BufferedImage.TYPE_INT_RGB);
+    final Graphics2D g2 = stage.createGraphics();
+    MapOfTheDayPanel.paintStage(
+        g2, MapOfTheDayPanel.StagePicture.of(picture), STAGE, floor, WINDOW);
+    g2.dispose();
+    return stage;
   }
 }

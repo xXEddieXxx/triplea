@@ -54,8 +54,9 @@ import org.triplea.swing.jpanel.GridBagConstraintsFill;
 /**
  * One map in a list of the maps window, in the view the player chose: a compact row (name, creator,
  * status, a small button), a row with its preview, a line about it and its buttons, or a tile with
- * a large preview on top. A click selects it, which shows the map in the details; ctrl-click and
- * shift-click select several maps.
+ * a large preview on top. Every view shows the map's rating and downloads (examples, see {@link
+ * MapRating}). A click selects it, which shows the map in the details; ctrl-click and shift-click
+ * select several maps.
  */
 final class MapRow extends JPanel {
   @Serial private static final long serialVersionUID = 4466510936120385542L;
@@ -163,13 +164,17 @@ final class MapRow extends JPanel {
     }
   }
 
-  /** Name and creator over the status, a small button on the right; no picture. */
+  /**
+   * Name and creator over the status and the rating and downloads, a small button on the right; no
+   * picture.
+   */
   private void layOutCompact(final Actions actions) {
     setLayout(new BorderLayout(16, 0));
     setBorder(newRowBorder(8));
     final JPanel texts = newTexts();
     texts.add(newTitle(map));
     texts.add(status);
+    texts.add(MapRating.newSummary(map.getMapName()));
     add(centeredVertically(texts), BorderLayout.CENTER);
     add(centeredVertically(newSmallButtons(map, actions)), BorderLayout.EAST);
   }
@@ -230,7 +235,10 @@ final class MapRow extends JPanel {
     return buttons;
   }
 
-  /** The preview on the left, then name, a line about the map and status, then the buttons. */
+  /**
+   * The preview on the left, then name, a line about the map, status and the rating and downloads,
+   * then the buttons.
+   */
   private void layOutWithPicture(final Actions actions) {
     setLayout(new BorderLayout(20, 0));
     setBorder(newRowBorder(15));
@@ -246,6 +254,7 @@ final class MapRow extends JPanel {
       texts.add(aboutLabel);
     }
     texts.add(status);
+    texts.add(MapRating.newSummary(map.getMapName()));
 
     final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
     buttons.setOpaque(false);
@@ -256,7 +265,10 @@ final class MapRow extends JPanel {
     add(centeredVertically(buttons), BorderLayout.EAST);
   }
 
-  /** A card: the large preview on top, below it name, creator, status and a small button. */
+  /**
+   * A card: the large preview on top, below it name, creator, status, rating and downloads and a
+   * small button.
+   */
   private void layOutTile(final Actions actions) {
     setLayout(new BorderLayout(0, 8));
     setBorder(
@@ -271,6 +283,7 @@ final class MapRow extends JPanel {
             .map(MapRow::newCreatorLabel)
             .orElseGet(() -> new JLabel(" ")));
     texts.add(status);
+    texts.add(MapRating.newSummary(map.getMapName()));
     final JPanel buttons = newSmallButtons(map, actions);
     ((FlowLayout) buttons.getLayout()).setAlignment(FlowLayout.LEFT);
 

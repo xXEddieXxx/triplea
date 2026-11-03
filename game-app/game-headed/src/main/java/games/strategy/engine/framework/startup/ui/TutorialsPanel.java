@@ -31,7 +31,7 @@ import org.triplea.swing.jpanel.GridBagConstraintsFill;
 final class TutorialsPanel extends JPanel {
   @Serial private static final long serialVersionUID = 4197012850360281139L;
 
-  @VisibleForTesting static final int CHAPTERS = 6;
+  @VisibleForTesting static final int CHAPTERS = 7;
   private static final String PREFIX = "startup.Tutorial.";
 
   private final JEditorPane reader = SwingComponents.newHtmlJEditorPane();

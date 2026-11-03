@@ -1,5 +1,6 @@
 package games.strategy.engine.posted.game.pbf;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.framework.system.HttpProxy;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -28,6 +30,20 @@ import org.triplea.yaml.YamlReader;
  */
 @AllArgsConstructor
 public class NodeBbTokenGenerator {
+  /** Why a forum that closed the way from a password to a login token cannot be signed in to. */
+  @VisibleForTesting
+  static final String PASSWORD_LOGIN_CLOSED =
+      "This forum no longer lets TripleA sign in with a password. Sign in with a login token"
+          + " from the forum's admins instead.";
+
+  /** A forum that does not answer is given up on, so signing in cannot hang. */
+  private static final RequestConfig TIMEOUTS =
+      RequestConfig.custom()
+          .setConnectTimeout(10_000)
+          .setConnectionRequestTimeout(10_000)
+          .setSocketTimeout(30_000)
+          .build();
+
   private final String forumUrl;
 
   /**
@@ -82,6 +98,7 @@ public class NodeBbTokenGenerator {
       throws IOException {
     final HttpDelete httpDelete =
         new HttpDelete(forumUrl + "/api/v2/users/" + userId + "/tokens/" + token);
+    httpDelete.setConfig(TIMEOUTS);
     HttpProxy.addProxy(httpDelete);
     client.execute(httpDelete).close(); // ignore errors, execute and then close
   }
@@ -116,8 +133,13 @@ public class NodeBbTokenGenerator {
       throws IOException {
     final String encodedUsername = URLEncoder.encode(username, StandardCharsets.UTF_8);
     final HttpGet get = new HttpGet(forumUrl + "/api/user/username/" + encodedUsername);
+    get.setConfig(TIMEOUTS);
     HttpProxy.addProxy(get);
     try (CloseableHttpResponse response = client.execute(get)) {
+      if (response.getStatusLine().getStatusCode() == 401) {
+        // forums.triplea-game.org shows players to its members only, and its login has a CAPTCHA
+        throw new IllegalStateException(PASSWORD_LOGIN_CLOSED);
+      }
       final String rawJson = EntityUtils.toString(response.getEntity());
       if (rawJson == null || rawJson.isBlank()) {
         throw new IllegalStateException(
@@ -143,8 +165,13 @@ public class NodeBbTokenGenerator {
     if (otp != null) {
       post.addHeader("x-two-factor-authentication", otp);
     }
+    post.setConfig(TIMEOUTS);
     HttpProxy.addProxy(post);
     try (CloseableHttpResponse response = client.execute(post)) {
+      if (response.getStatusLine().getStatusCode() == 404) {
+        // the forum no longer has the route that turns a password into a token
+        throw new IllegalStateException(PASSWORD_LOGIN_CLOSED);
+      }
       final String rawJson = EntityUtils.toString(response.getEntity());
       if (rawJson == null || rawJson.isBlank()) {
         throw new IllegalStateException(

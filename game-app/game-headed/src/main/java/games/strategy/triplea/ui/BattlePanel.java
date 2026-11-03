@@ -3,6 +3,7 @@ package games.strategy.triplea.ui;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.data.Territory;
 import games.strategy.engine.data.Unit;
+import games.strategy.engine.posted.game.pbem.OpponentQuestion;
 import games.strategy.triplea.Properties;
 import games.strategy.triplea.delegate.DiceRoll;
 import games.strategy.triplea.delegate.Die;
@@ -58,8 +59,12 @@ public final class BattlePanel extends ActionPanel {
   private final JDialog battleWindow;
   private BattleListing battleListing;
 
+  /** Asks the opponent of a game by forum or email for their casualties. */
+  private final transient OpponentQuestion opponent;
+
   BattlePanel(final TripleAFrame frame) {
     super(frame);
+    opponent = new OpponentQuestion(frame.getGame(), frame);
     battleWindow = new JDialog(frame);
     battleWindow.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
     battleWindow.addWindowListener(
@@ -472,7 +477,8 @@ public final class BattlePanel extends ActionPanel {
         dice,
         hit,
         defaultCasualties,
-        allowMultipleHitsPerUnit);
+        allowMultipleHitsPerUnit,
+        opponent);
   }
 
   private @Nullable CasualtyDetails getCasualtiesAa(

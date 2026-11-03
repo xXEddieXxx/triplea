@@ -56,10 +56,6 @@ public class UiContext {
   private static final String ORIGINAL_SKIN_NAME = "Original";
 
   private static final String MAP_SKIN_PREF = "MapSkin";
-  private static final String SHOW_END_OF_TURN_REPORT = "ShowEndOfTurnReport";
-  private static final String SHOW_TRIGGERED_NOTIFICATIONS = "ShowTriggeredNotifications";
-  private static final String SHOW_TRIGGERED_CHANCE_SUCCESSFUL = "ShowTriggeredChanceSuccessful";
-  private static final String SHOW_TRIGGERED_CHANCE_FAILURE = "ShowTriggeredChanceFailure";
   @Getter private final ClipPlayer clipPlayer;
 
   @Getter protected MapData mapData;
@@ -70,7 +66,7 @@ public class UiContext {
   @Getter private final String skinName;
   @Getter private final Path mapLocation;
   @Getter private final ResourceLoader resourceLoader;
-  @Getter private final TileImageFactory tileImageFactory = new TileImageFactory();
+  @Getter private final TileImageFactory tileImageFactory;
   @Getter private UnitImageFactory unitImageFactory;
   @Getter private final UnitIconImageFactory unitIconImageFactory;
   @Getter private final ResourceImageFactory resourceImageFactory = new ResourceImageFactory();
@@ -148,7 +144,7 @@ public class UiContext {
     unitIconImageFactory = new UnitIconImageFactory(data, resourceLoader);
     flagImageFactory.setResourceLoader(resourceLoader);
     puImageFactory.setResourceLoader(resourceLoader);
-    tileImageFactory.setResourceLoader(resourceLoader);
+    tileImageFactory = new TileImageFactory(resourceLoader, mapData);
     mapImage = new MapImage(resourceLoader);
     drawTerritoryEffects = mapData.useTerritoryEffectMarkers();
     // set the resource loader
@@ -411,49 +407,5 @@ public class UiContext {
     } catch (final RuntimeException e) {
       log.error("Failed to deactivate actor", e);
     }
-  }
-
-  public boolean getShowEndOfTurnReport() {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    return prefs.getBoolean(SHOW_END_OF_TURN_REPORT, true);
-  }
-
-  public void setShowEndOfTurnReport(final boolean value) {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    prefs.putBoolean(SHOW_END_OF_TURN_REPORT, value);
-    flushPreferences(prefs);
-  }
-
-  public boolean getShowTriggeredNotifications() {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    return prefs.getBoolean(SHOW_TRIGGERED_NOTIFICATIONS, true);
-  }
-
-  public void setShowTriggeredNotifications(final boolean value) {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    prefs.putBoolean(SHOW_TRIGGERED_NOTIFICATIONS, value);
-    flushPreferences(prefs);
-  }
-
-  public boolean getShowTriggerChanceSuccessful() {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    return prefs.getBoolean(SHOW_TRIGGERED_CHANCE_SUCCESSFUL, true);
-  }
-
-  public void setShowTriggerChanceSuccessful(final boolean value) {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    prefs.putBoolean(SHOW_TRIGGERED_CHANCE_SUCCESSFUL, value);
-    flushPreferences(prefs);
-  }
-
-  public boolean getShowTriggerChanceFailure() {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    return prefs.getBoolean(SHOW_TRIGGERED_CHANCE_FAILURE, true);
-  }
-
-  public void setShowTriggerChanceFailure(final boolean value) {
-    final Preferences prefs = Preferences.userNodeForPackage(UiContext.class);
-    prefs.putBoolean(SHOW_TRIGGERED_CHANCE_FAILURE, value);
-    flushPreferences(prefs);
   }
 }

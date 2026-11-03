@@ -9,6 +9,7 @@ import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.data.Territory;
 import games.strategy.engine.data.TerritoryEffect;
 import games.strategy.engine.data.Unit;
+import games.strategy.engine.posted.game.pbem.OpponentQuestion;
 import games.strategy.triplea.delegate.DiceRoll;
 import games.strategy.triplea.delegate.Die;
 import games.strategy.triplea.delegate.EditDelegate;
@@ -469,7 +470,8 @@ public class BattleDisplay extends JPanel {
       final DiceRoll dice,
       final GamePlayer hit,
       final CasualtyList defaultCasualties,
-      final boolean allowMultipleHitsPerUnit) {
+      final boolean allowMultipleHitsPerUnit,
+      final OpponentQuestion opponent) {
     Util.ensureNotOnEventDispatchThread();
     final AtomicReference<CasualtyDetails> casualtyDetails =
         new AtomicReference<>(new CasualtyDetails());
@@ -497,7 +499,9 @@ public class BattleDisplay extends JPanel {
                   allowMultipleHitsPerUnit,
                   uiContext,
                   BattleDisplay.this,
-                  isEditMode);
+                  isEditMode,
+                  opponent,
+                  battleLocation.getName());
 
           actionButton.setAction(
               new AbstractAction(btnText) {

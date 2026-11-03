@@ -2,7 +2,6 @@ package games.strategy.engine.framework.map.download;
 
 import games.strategy.engine.framework.map.file.system.loader.InstalledMap;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListing;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -144,14 +143,34 @@ final class ManagedMapStore implements DownloadListener {
     // currently nothing to do, but needed due to interface
   }
 
+  /**
+   * Marks the map installed; a map this store does not hold, eg one downloaded for a game while the
+   * listing of an earlier maps window could not be read, is none of its business.
+   */
   @Override
   public void downloadComplete(MapDownloadItem download) {
-    final ManagedMap managedMap = getMapByMapDownloadItem(download);
-    if (managedMap == null) {
-      throw new IllegalStateException(
-          MessageFormat.format("No MapDownloadItem: {0} in map store {1}", download, this));
-    }
-    SwingUtilities.invokeLater(() -> updateStatus(List.of(managedMap), ManagedMapStatus.INSTALLED));
+    Optional.ofNullable(getMapByMapDownloadItem(download))
+        .ifPresent(
+            managedMap ->
+                SwingUtilities.invokeLater(
+                    () -> updateStatus(List.of(managedMap), ManagedMapStatus.INSTALLED)));
+  }
+
+  /**
+   * A map still shown downloading, eg cancelled while a game waited for it, offers to install it
+   * again; a cancel in the maps window set the map's status already.
+   */
+  @Override
+  public void downloadCancelled(final MapDownloadItem download) {
+    Optional.ofNullable(getMapByMapDownloadItem(download))
+        .ifPresent(
+            managedMap ->
+                SwingUtilities.invokeLater(
+                    () -> {
+                      if (managedMap.getMapStatus() == ManagedMapStatus.DOWNLOADING) {
+                        updateStatus(List.of(managedMap), ManagedMapStatus.ERROR);
+                      }
+                    }));
   }
 
   /** Marks the map failed, which offers to install it again. */

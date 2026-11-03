@@ -2,13 +2,19 @@ package games.strategy.engine.framework.map.download;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
+import games.strategy.engine.framework.map.download.MapRow.Listener;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMap;
+import java.awt.Component;
+import java.awt.Container;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
@@ -169,6 +175,37 @@ final class MapRowTest {
                 .toList())
         .as("both can be tried again; only the installed one has something to uninstall")
         .containsExactly(List.of("Uninstall", "Install"), List.of("Install"));
+  }
+
+  @DisplayName("Every view shows the map's rating and downloads")
+  @Test
+  void everyViewShowsRatingAndDownloads() {
+    final ManagedMap map = new ManagedMap(givenDownload(NEWER));
+    final String summary = MapRating.summaryText(map.getMapName());
+
+    assertThat(MapBrowserView.values())
+        .as("the compact list, the list with pictures and the tiles")
+        .allSatisfy(
+            view ->
+                assertThat(
+                        labelTexts(
+                            new MapRow(
+                                map,
+                                view,
+                                Caches.newCaches(),
+                                NO_ACTIONS,
+                                new Listener(row -> {}, row -> {}, row -> {}))))
+                    .contains(summary));
+  }
+
+  private static List<String> labelTexts(final Component component) {
+    final Stream<String> own =
+        component instanceof JLabel label ? Stream.of(label.getText()) : Stream.empty();
+    final Stream<String> children =
+        component instanceof Container container
+            ? Arrays.stream(container.getComponents()).flatMap(c -> labelTexts(c).stream())
+            : Stream.empty();
+    return Stream.concat(own, children).toList();
   }
 
   private static MapDownloadItem givenDownload(final Instant lastCommit) {

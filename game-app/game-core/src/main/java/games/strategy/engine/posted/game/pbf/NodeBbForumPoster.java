@@ -3,11 +3,13 @@ package games.strategy.engine.posted.game.pbf;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import games.strategy.engine.framework.system.HttpProxy;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
 import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.ClientSetting;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +30,11 @@ import org.triplea.awt.OpenFileUtility;
 import org.triplea.yaml.YamlReader;
 
 /**
- * Posts turn summaries to a NodeBB based forum of your choice.
+ * Posts turn summaries to a NodeBB based forum of your choice: as the player signed in on the Play
+ * by forum page if there is a browser session ({@link NodeBbGameThreads#reply}), else with the
+ * login token.
  *
- * <p>URL format is {@code https://your.forumurl.com/api/v2/topics/<topicID>}.
+ * <p>URL format of the token's posts is {@code https://your.forumurl.com/api/v2/topics/<topicID>}.
  */
 public class NodeBbForumPoster {
 
@@ -39,14 +43,24 @@ public class NodeBbForumPoster {
 
   @NonNls public static final String TRIPLEA_FORUM_DISPLAY_NAME = "forums.triplea-game.org";
 
+  private static final String POSTED = "Successfully posted!";
+
+  @VisibleForTesting
+  static final String HELD_BACK =
+      "Posted. The forum shows the post once a moderator approved it, as it does for new members.";
+
   private final int topicId;
   private final String token;
   private final String forumUrl;
+
+  /** The player's browser session on the forum, empty when signed out: then the token signs in. */
+  private final String session;
 
   @Builder
   public static class ForumPostingParameters {
     @Nonnull private final Integer topicId;
     @Nonnull private final char[] token;
+    @Nonnull private final char[] session;
     @Nonnull private final String forumUrl;
   }
 
@@ -61,6 +75,7 @@ public class NodeBbForumPoster {
     this.topicId = forumPostingParameters.topicId;
     this.forumUrl = forumPostingParameters.forumUrl;
     this.token = new String(forumPostingParameters.token);
+    this.session = new String(forumPostingParameters.session);
   }
 
   /**
@@ -74,6 +89,7 @@ public class NodeBbForumPoster {
             ForumPostingParameters.builder()
                 .topicId(topicId)
                 .token(ClientSetting.tripleaForumToken.getValue().orElse(new char[0]))
+                .session(ClientSetting.tripleaForumSession.getValue().orElse(new char[0]))
                 .forumUrl(UrlConstants.TRIPLEA_FORUM)
                 .build());
       case NodeBbForumPoster.AXIS_AND_ALLIES_ORG_DISPLAY_NAME:
@@ -81,6 +97,7 @@ public class NodeBbForumPoster {
             ForumPostingParameters.builder()
                 .topicId(topicId)
                 .token(ClientSetting.aaForumToken.getValue().orElse(new char[0]))
+                .session(ClientSetting.aaForumSession.getValue().orElse(new char[0]))
                 .forumUrl(UrlConstants.AXIS_AND_ALLIES_FORUM)
                 .build());
       default:
@@ -102,13 +119,62 @@ public class NodeBbForumPoster {
    */
   public CompletableFuture<String> postTurnSummary(
       final String summary, final String title, @Nullable final SaveGameParameter saveGame) {
+    final String text = "### " + title + "\n" + summary;
+    if (!session.isEmpty()) {
+      return postWithSession(text, saveGame);
+    }
     try (CloseableHttpClient client = NodeBbHttpClients.builder().bearerToken(token).build()) {
-      post(client, "### " + title + "\n" + summary, saveGame);
-      return CompletableFuture.completedFuture("Successfully posted!");
+      post(client, text, saveGame);
+      return CompletableFuture.completedFuture(POSTED);
     } catch (final IOException | IllegalStateException e) {
       final CompletableFuture<String> result = new CompletableFuture<>();
       result.completeExceptionally(e);
       return result;
+    }
+  }
+
+  /** Answers in the game's thread as the player signed in on the Play by forum page. */
+  private CompletableFuture<String> postWithSession(
+      final String text, @Nullable final SaveGameParameter saveGame) {
+    // the category matters only to new threads
+    final NodeBbGameThreads forum = NodeBbGameThreads.withSession(forumUrl, 0, session);
+    final GameThread thread = GameThread.of(topicId, "", "");
+    try {
+      final boolean heldBack =
+          saveGame == null
+              ? forum.reply(thread, text)
+              : replyWithSaveGame(forum, thread, text, saveGame);
+      return CompletableFuture.completedFuture(heldBack ? HELD_BACK : POSTED);
+    } catch (final IOException e) {
+      return CompletableFuture.failedFuture(
+          new IOException(
+              e.getMessage()
+                  + "\nIf your sign-in ran out, sign in again on Multiplayer > Play by forum.",
+              e));
+    } catch (final IllegalStateException e) {
+      // eg the forum's answer to the upload unreadable
+      return CompletableFuture.failedFuture(e);
+    }
+  }
+
+  /**
+   * Answers with the save game uploaded under the game's name for it, eg "triplea_101_6Ger.tsvg",
+   * as the forum names an upload by its file, here a temporary one.
+   */
+  private static boolean replyWithSaveGame(
+      final NodeBbGameThreads forum,
+      final GameThread thread,
+      final String text,
+      final SaveGameParameter saveGame)
+      throws IOException {
+    final Path folder = Files.createTempDirectory("triplea-post");
+    final Path named = folder.resolve(NodeBbGameThreads.safeFileName(saveGame.displayName));
+    try {
+      Files.copy(saveGame.path, named);
+      return forum.reply(thread, text, named);
+    } finally {
+      Files.deleteIfExists(named);
+      Files.deleteIfExists(folder);
     }
   }
 

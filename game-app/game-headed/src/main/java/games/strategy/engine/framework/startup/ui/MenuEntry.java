@@ -17,6 +17,7 @@ import java.awt.event.MouseEvent;
 import java.io.Serial;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.UIManager;
@@ -30,10 +31,17 @@ final class MenuEntry extends JButton {
   @Serial private static final long serialVersionUID = 6427839582612730410L;
 
   private static final int BAR_WIDTH = 4;
-  private static final int INDENT = 20;
+
+  /**
+   * The room left of the texts, for the bar; what stands above or below lines up with the texts.
+   */
+  static final int INDENT = 20;
 
   private final JLabel titleLabel;
   private final JLabel descriptionLabel;
+  private final JPanel texts = new JPanel(new BorderLayout(0, MenuSpacing.XS));
+  private final float titleSize;
+  private final float descriptionSize;
   private final boolean highlighted;
   private boolean active;
 
@@ -43,21 +51,22 @@ final class MenuEntry extends JButton {
       final float titleSize,
       final boolean highlighted) {
     this.highlighted = highlighted;
-    setLayout(new BorderLayout(0, 2));
+    setLayout(new BorderLayout());
     setContentAreaFilled(false);
     setBorderPainted(false);
     setFocusPainted(false);
     setOpaque(false);
     setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    setBorder(BorderFactory.createEmptyBorder(8, INDENT, 8, INDENT));
+    setBorder(BorderFactory.createEmptyBorder(MenuSpacing.S, INDENT, MenuSpacing.S, INDENT));
     getAccessibleContext().setAccessibleName(title);
     getAccessibleContext().setAccessibleDescription(description);
 
+    this.titleSize = titleSize;
     titleLabel = new JLabel(title);
     titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleSize));
     descriptionLabel = new JLabel(description);
     descriptionLabel.setVisible(!description.isEmpty());
-    final JPanel texts = new JPanel(new BorderLayout(0, 2));
+    descriptionSize = descriptionLabel.getFont().getSize2D();
     texts.setOpaque(false);
     texts.add(titleLabel, BorderLayout.NORTH);
     texts.add(descriptionLabel, BorderLayout.CENTER);
@@ -100,6 +109,29 @@ final class MenuEntry extends JButton {
     return new MenuEntry(title, description, titleSize(10), true);
   }
 
+  /**
+   * The entry to advertise with a live line below its description, eg how busy the lobby is below
+   * Multiplayer: what the click leads to, on the same click.
+   */
+  static MenuEntry newHighlighted(
+      final String title, final String description, final JComponent status) {
+    final MenuEntry entry = newHighlighted(title, description);
+    final JPanel line = new JPanel(new BorderLayout());
+    line.setOpaque(false);
+    line.setBorder(BorderFactory.createEmptyBorder(MenuSpacing.XS, 0, 0, 0));
+    line.add(status, BorderLayout.WEST);
+    entry.texts.add(line, BorderLayout.SOUTH);
+    return entry;
+  }
+
+  /**
+   * A further entry of the main menu, eg "Settings": a step smaller than the ways to play, so those
+   * stand out.
+   */
+  static MenuEntry newSecondary(final String title) {
+    return new MenuEntry(title, "", titleSize(6), false);
+  }
+
   /** A smaller entry, eg a chapter of the tutorial. */
   static MenuEntry newSmall(final String title, final String description) {
     return new MenuEntry(title, description, titleSize(3), false);
@@ -108,6 +140,15 @@ final class MenuEntry extends JButton {
   private static float titleSize(final int pointsAboveText) {
     final Font font = UIManager.getFont("Label.font");
     return (font == null ? 13f : font.getSize2D()) + pointsAboveText;
+  }
+
+  /**
+   * Sets title and description the factor larger than they were made, eg a step larger in large
+   * windows, where the usual size looks lost; 1 is the size they were made in.
+   */
+  void setTypeScale(final float scale) {
+    titleLabel.setFont(titleLabel.getFont().deriveFont(titleSize * scale));
+    descriptionLabel.setFont(descriptionLabel.getFont().deriveFont(descriptionSize * scale));
   }
 
   /** Marks the entry as the chosen one of a list, eg the chapter being read. */
@@ -134,13 +175,8 @@ final class MenuEntry extends JButton {
     final Color text = UIManager.getColor("Label.foreground");
     final boolean lit = active || isSelected();
     titleLabel.setForeground(
-        highlighted && accent != null ? accent : lit ? text : withAlpha(text, 215));
+        highlighted && accent != null ? accent : lit ? text : MenuColors.withAlpha(text, 215));
     descriptionLabel.setForeground(LookAndFeel.getSecondaryTextColor());
-  }
-
-  /** The color, see-through by the given alpha (0 to 255); for the gradients of the menu too. */
-  static Color withAlpha(final Color color, final int alpha) {
-    return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
   }
 
   @Override
@@ -154,10 +190,12 @@ final class MenuEntry extends JButton {
           highlighted && accent != null ? accent : UIManager.getColor("Label.foreground");
       if (lit) {
         // a faint wash under the entry, fading out to the right
-        g2.setPaint(new GradientPaint(0, 0, withAlpha(bar, 34), getWidth(), 0, withAlpha(bar, 0)));
+        g2.setPaint(
+            new GradientPaint(
+                0, 0, MenuColors.withAlpha(bar, 34), getWidth(), 0, MenuColors.withAlpha(bar, 0)));
         g2.fillRect(0, 0, getWidth(), getHeight());
       }
-      g2.setColor(lit ? bar : withAlpha(bar, 140));
+      g2.setColor(lit ? bar : MenuColors.withAlpha(bar, 140));
       g2.fillRoundRect(0, 6, BAR_WIDTH, getHeight() - 12, BAR_WIDTH, BAR_WIDTH);
       g2.dispose();
     }

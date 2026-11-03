@@ -39,9 +39,9 @@ import org.triplea.util.Tuple;
  */
 class OrderOfLossesInputPanel extends JPanel {
   @Serial private static final long serialVersionUID = 8815617685388156219L;
-  private static final char OOL_SEPARATOR = ';';
-  private static final char OOL_AMOUNT_DESCRIPTOR = '^';
-  private static final String OOL_ALL = "*";
+  static final char OOL_SEPARATOR = ';';
+  static final char OOL_AMOUNT_DESCRIPTOR = '^';
+  static final String OOL_ALL = "*";
 
   private final GameData data;
   private final UiContext uiContext;

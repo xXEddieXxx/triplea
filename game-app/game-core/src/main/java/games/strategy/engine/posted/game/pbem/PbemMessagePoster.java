@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -216,6 +217,36 @@ public class PbemMessagePoster implements Serializable {
       final JFrame frame,
       final IGame game,
       final JComponent postButton) {
+    postTurn(title, historyLog, includeSaveGame, postingDelegate, frame, game, postButton, null);
+  }
+
+  /**
+   * Posts as {@link #postTurn(String, HistoryLog, boolean, IAbstractForumPosterDelegate, JFrame,
+   * IGame, JComponent)}, then, once posted, goes on, eg ends the turn, instead of telling of the
+   * post; a post that failed is told as ever.
+   */
+  public void postTurnAndThen(
+      final String title,
+      final HistoryLog historyLog,
+      final boolean includeSaveGame,
+      final IAbstractForumPosterDelegate postingDelegate,
+      final JFrame frame,
+      final IGame game,
+      final JComponent postButton,
+      final Runnable afterPosted) {
+    postTurn(
+        title, historyLog, includeSaveGame, postingDelegate, frame, game, postButton, afterPosted);
+  }
+
+  private void postTurn(
+      final String title,
+      final HistoryLog historyLog,
+      final boolean includeSaveGame,
+      final @Nullable IAbstractForumPosterDelegate postingDelegate,
+      final JFrame frame,
+      final IGame game,
+      final @Nullable JComponent postButton,
+      final @Nullable Runnable afterPosted) {
     String message = "";
     final String displayName = gameProperties.get(IForumPoster.NAME, "");
     final StringBuilder sb = new StringBuilder();
@@ -308,6 +339,10 @@ public class PbemMessagePoster implements Serializable {
                 () -> {
                   if (postButton != null) {
                     postButton.setEnabled(!finalPostOk);
+                  }
+                  if (finalPostOk && afterPosted != null) {
+                    afterPosted.run();
+                    return;
                   }
                   JOptionPane.showMessageDialog(
                       frame,

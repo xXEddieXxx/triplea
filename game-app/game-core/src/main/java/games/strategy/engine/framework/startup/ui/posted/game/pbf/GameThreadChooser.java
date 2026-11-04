@@ -7,6 +7,7 @@ import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.Player;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.BorderFactory;
@@ -33,8 +35,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.text.StringEscapeUtils;
 
 /**
@@ -60,14 +64,21 @@ final class GameThreadChooser {
    * Reads the forum's games with the player's session behind a wait window, then lets the player
    * pick one.
    *
+   * @param isOld the games the player moved to Old games, which leave the player's own games; the
+   *     forum's newest list keeps them, as Browse games on the Play by forum page does
+   * @param sessionRanOut tells the screen that the session signs nobody in any more
    * @return the picked game; none if the player cancelled, the session ran out or there are none
    */
-  static Optional<GameThread> choose(final Component parent, final NodeBbGameThreads forum) {
+  static Optional<GameThread> choose(
+      final Component parent,
+      final NodeBbGameThreads forum,
+      final Predicate<GameThread> isOld,
+      final Runnable sessionRanOut) {
     final Optional<Games> read;
     try {
       read =
           BackgroundTaskRunner.runInBackgroundAndReturn(
-              "Reading the forum's games...", () -> read(forum), null, IOException.class);
+              "Reading the forum's games...", () -> read(forum, isOld), null, IOException.class);
     } catch (final IOException e) {
       JOptionPane.showMessageDialog(
           parent,
@@ -82,6 +93,7 @@ final class GameThreadChooser {
       return Optional.empty();
     }
     if (read.isEmpty()) {
+      sessionRanOut.run();
       JOptionPane.showMessageDialog(
           parent,
           "You are no longer signed in. Sign in again on Multiplayer > Play by forum.",
@@ -102,29 +114,36 @@ final class GameThreadChooser {
   }
 
   /** The games, or none when the session signs nobody in any more: the forum hides them then. */
-  private static Optional<Games> read(final NodeBbGameThreads forum) throws IOException {
+  private static Optional<Games> read(
+      final NodeBbGameThreads forum, final Predicate<GameThread> isOld) throws IOException {
     final Optional<Player> player = forum.signedInPlayer();
     if (player.isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(inOrder(forum.threadsOf(player.get()), forum.browse(), player.get()));
+    return Optional.of(inOrder(forum.threadsOf(player.get()), forum.browse(), player.get(), isOld));
   }
 
   /**
    * The player's games, theirs to move first and the watched ones last, each group in the forum's
-   * order (the last answered first), then the others of the newest games.
+   * order (the last answered first), then the others of the newest games; the player's games leave
+   * out those moved to Old games.
    */
   @VisibleForTesting
   static Games inOrder(
-      final List<GameThread> own, final List<GameThread> newest, final Player player) {
+      final List<GameThread> own,
+      final List<GameThread> newest,
+      final Player player,
+      final Predicate<GameThread> isOld) {
+    // as on the Play by forum page: old games leave the player's games, the forum's list keeps all
+    final List<GameThread> current = own.stream().filter(Predicate.not(isOld)).toList();
     final Set<Integer> ownTopics =
-        own.stream().map(GameThread::topicId).collect(Collectors.toUnmodifiableSet());
+        current.stream().map(GameThread::topicId).collect(Collectors.toUnmodifiableSet());
     final Comparator<GameThread> yourTurnFirst =
         Comparator.comparing((GameThread thread) -> !thread.waitsFor(player))
             .thenComparing(GameThread::onlyWatched);
     final List<GameThread> threads =
         Stream.concat(
-                own.stream().sorted(yourTurnFirst),
+                current.stream().sorted(yourTurnFirst),
                 newest.stream().filter(thread -> !ownTopics.contains(thread.topicId())))
             .toList();
     return new Games(threads, ownTopics, player);
@@ -148,7 +167,14 @@ final class GameThreadChooser {
         new MouseAdapter() {
           @Override
           public void mouseClicked(final MouseEvent e) {
-            if (e.getClickCount() == 2 && list.getSelectedValue() != null) {
+            // on a game only: below the last one, the list would pick the nearest
+            final int index = list.locationToIndex(e.getPoint());
+            if (e.getClickCount() == 2
+                && SwingUtilities.isLeftMouseButton(e)
+                && index >= 0
+                && list.getCellBounds(index, index).contains(e.getPoint())) {
+              // the game clicked, also after a ctrl-click took the selection away
+              list.setSelectedIndex(index);
               // closes the dialog as OK does
               pane.setValue(JOptionPane.OK_OPTION);
             }
@@ -161,38 +187,12 @@ final class GameThreadChooser {
         : Optional.empty();
   }
 
-  /**
-   * What the row says about a game below its title, eg "Your turn · Germans, round 5 · last post 3
-   * Nov 2026"; what is not known is left out.
-   */
-  @VisibleForTesting
-  static String describe(final GameThread thread, final Games games) {
-    final List<String> parts = new ArrayList<>();
-    if (thread.waitsFor(games.player())) {
-      parts.add("Your turn");
-    } else if (thread.onlyWatched()) {
-      parts.add("Watching");
-    } else if (games.ownTopics().contains(thread.topicId())) {
-      parts.add("Your game");
-    }
-    if (!thread.lastTurn().isBlank()) {
-      parts.add(thread.lastTurn());
-    }
-    if (thread.lastPost().isAfter(Instant.EPOCH)) {
-      parts.add("last post " + DATE.format(thread.lastPost()));
-    }
-    return String.join(" · ", parts);
-  }
-
   /** A game as two lines: its title in bold, below it {@link #describe} in the secondary color. */
+  @RequiredArgsConstructor
   private static final class Row extends DefaultListCellRenderer {
     @Serial private static final long serialVersionUID = 4127863550394482211L;
 
     private final transient Games games;
-
-    Row(final Games games) {
-      this.games = games;
-    }
 
     @Override
     public Component getListCellRendererComponent(
@@ -202,19 +202,50 @@ final class GameThreadChooser {
         final boolean isSelected,
         final boolean cellHasFocus) {
       final GameThread thread = (GameThread) value;
+      // on the selection the secondary grey is hard to read: the selection's own color there
+      final Color detailColor =
+          isSelected ? list.getSelectionForeground() : LookAndFeel.getSecondaryTextColor();
       // titles and turns are written by players: escaped, so they show as written
       final String text =
           "<html><b>"
               + StringEscapeUtils.escapeHtml4(thread.title())
               + "</b><br><span style='color:"
-              + LookAndFeel.convertColorToHex(LookAndFeel.getSecondaryTextColor())
+              + LookAndFeel.convertColorToHex(detailColor)
               + "'>"
               + StringEscapeUtils.escapeHtml4(describe(thread, games))
               + "</span></html>";
       final Component row =
           super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
-      setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+      // padding inside the border the list chose, which marks the keyboard focus
+      setBorder(
+          BorderFactory.createCompoundBorder(
+              getBorder(), BorderFactory.createEmptyBorder(4, 6, 4, 6)));
       return row;
     }
+  }
+
+  /**
+   * What the row says about a game below its title, eg "Your turn · Germans, round 5 · last post 3
+   * Nov 2026"; what is not known is left out. Only the player's own games can be their turn: in the
+   * others' games someone else posted last as well.
+   */
+  @VisibleForTesting
+  static String describe(final GameThread thread, final Games games) {
+    final boolean own = games.ownTopics().contains(thread.topicId());
+    final List<String> parts = new ArrayList<>();
+    if (own && thread.waitsFor(games.player())) {
+      parts.add("Your turn");
+    } else if (thread.onlyWatched()) {
+      parts.add("Watching");
+    } else if (own) {
+      parts.add("Your game");
+    }
+    if (!thread.lastTurn().isBlank()) {
+      parts.add(thread.lastTurn());
+    }
+    if (thread.lastPost().isAfter(Instant.EPOCH)) {
+      parts.add("last post " + DATE.format(thread.lastPost()));
+    }
+    return String.join(" · ", parts);
   }
 }

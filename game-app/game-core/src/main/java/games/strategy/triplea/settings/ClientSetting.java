@@ -7,6 +7,7 @@ import com.google.common.base.Preconditions;
 import games.strategy.engine.ClientFileSystemHelper;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.MapBrowserView;
+import games.strategy.engine.framework.map.download.MapSort;
 import games.strategy.engine.framework.startup.ui.posted.game.DiceServerEditor;
 import games.strategy.engine.framework.system.HttpProxy;
 import games.strategy.engine.framework.system.SystemProperties;
@@ -112,6 +113,9 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
   public static final ClientSetting<MapBrowserView> mapBrowserView =
       new EnumClientSetting<>(
           MapBrowserView.class, "MAP_BROWSER_VIEW", MapBrowserView.LIST_WITH_PICTURES);
+  // the order of the maps in the maps window; the sort button above its lists changes it
+  public static final ClientSetting<MapSort> mapBrowserSort =
+      new EnumClientSetting<>(MapSort.class, "MAP_BROWSER_SORT", MapSort.NAME);
   public static final ClientSetting<Boolean> startFullScreen =
       new BooleanClientSetting("START_FULL_SCREEN", false);
   // where the main window was when it last closed: "x,y,width,height", unset while maximized
@@ -236,6 +240,13 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
 
   public static final ClientSetting<String> emailProvider =
       new StringClientSetting("EMAIL_PROVIDER");
+
+  /**
+   * The games by forum the player moved to Old games on the Play by forum page, eg finished ones:
+   * "forum address#topic" keys, separated by spaces; the forum keeps the games.
+   */
+  public static final ClientSetting<String> oldForumGames =
+      new StringClientSetting("OLD_FORUM_GAMES", "");
 
   private static final AtomicReference<Preferences> preferencesRef = new AtomicReference<>();
 

@@ -1,6 +1,9 @@
 package games.strategy.engine.posted.game.pbem;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,9 +13,10 @@ import games.strategy.engine.data.GameStep;
 import games.strategy.engine.framework.IGame;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
 import games.strategy.triplea.xml.TestMapGameData;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.stream.StreamSupport;
 import javax.swing.AbstractButton;
-import javax.swing.JFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +24,7 @@ import org.junit.jupiter.api.Test;
 final class OpponentQuestionTest {
   private final GameData data = TestMapGameData.REVISED.getGameData();
   private final IGame game = mock(IGame.class);
-  private final OpponentQuestion question = new OpponentQuestion(game, mock(JFrame.class));
+  private final OpponentQuestion question = new OpponentQuestion(game);
   private GamePlayer moving;
   private GamePlayer other;
 
@@ -53,6 +57,28 @@ final class OpponentQuestionTest {
         .map(AbstractButton::getText)
         .contains("Ask in the forum");
     assertThat(question.newAskButton(moving, () -> "?")).as("nobody to ask").isEmpty();
+  }
+
+  @DisplayName("A question not posted says so on its button, which asks again; no window opens")
+  @Test
+  void failedQuestionIsToldOnTheButton() throws Exception {
+    data.getProperties().set(IForumPoster.NAME, "forums.triplea-game.org");
+    doThrow(new IllegalStateException("disk full")).when(game).saveGame(any(Path.class));
+    final AbstractButton ask = question.newAskButton(other, () -> "do you scramble?").orElseThrow();
+
+    ask.doClick();
+
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                assertThat(ask.getText())
+                    .as("the decision's dialog stays; the player can ask again")
+                    .isEqualTo("Ask in the forum again"));
+    assertThat(ask.getToolTipText())
+        .as("why, where the player looks")
+        .isEqualTo("Not posted: Posting failed: disk full");
+    assertThat(ask.isEnabled()).as("asking again is possible").isTrue();
   }
 
   @DisplayName("A game not by forum or email asks nobody: every player decides at the table")

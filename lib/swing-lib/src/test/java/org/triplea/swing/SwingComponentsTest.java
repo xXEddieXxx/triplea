@@ -9,14 +9,25 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 final class SwingComponentsTest {
-  @DisplayName("A scroll pane over a plain panel scrolls a text line per wheel notch, not a pixel")
+  @DisplayName(
+      "A scroll pane over a plain panel scrolls about two text lines per step, not a pixel")
   @Test
   void scrollPaneScrollsByLines() {
     final JScrollPane scroll = SwingComponents.newJScrollPane(new JPanel());
 
     assertThat(scroll.getVerticalScrollBar().getUnitIncrement(1))
-        .as("Swing's default of 1 px makes long panels tedious to scroll")
-        .isEqualTo(16);
+        .as("Swing's 1 px, and one line, made long pages tedious to scroll; three steps per notch")
+        .isEqualTo(40);
+  }
+
+  @DisplayName("A scrollable panel scrolls as far per step as a plain one")
+  @Test
+  void scrollablePanelScrollsAsFar() {
+    final JScrollPane scroll = SwingComponents.newJScrollPane(new ScrollableJPanel());
+
+    assertThat(scroll.getVerticalScrollBar().getUnitIncrement(1))
+        .as("the settings and other pages scroll as fast as the rest")
+        .isEqualTo(40);
   }
 
   @DisplayName("A table keeps scrolling by its own step, one row")

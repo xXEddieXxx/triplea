@@ -5,6 +5,7 @@ import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
 import games.strategy.engine.framework.map.download.MapRow.Listener;
+import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -20,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -32,19 +34,18 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import lombok.Getter;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
-import org.triplea.http.client.lobby.maps.listing.MapTag;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.ScrollableJPanel;
 import org.triplea.swing.SwingComponents;
 import org.triplea.swing.WrapLayout;
 
 /**
- * The maps of a tab of the maps window, sorted by name, in the chosen view (compact rows, rows with
- * pictures or tiles), with the search and the view switch above them and the details of the
- * selected map on the right. The first shown map is selected unless the player clicked another;
- * ctrl-click and shift-click select several maps, which the bar above the maps installs or updates
- * together. The search shows only the maps whose name or tags, eg the category, contain the
- * searched text.
+ * The maps of a tab of the maps window in the chosen order ({@link MapSort}) and view (compact
+ * rows, rows with pictures or tiles), with the search, the sort, tag and view buttons above them
+ * and the details of the selected map on the right. The first shown map is selected unless the
+ * player clicked another; ctrl-click and shift-click select several maps, which the bar above the
+ * maps installs or updates together. The search shows only the maps whose name or tags, eg the
+ * category, contain the searched text, and that have the checked tags.
  */
 final class MapList {
   // the share of the width the maps get; the details get the rest
@@ -68,31 +69,34 @@ final class MapList {
   // the bytes received of the running downloads, so rebuilt rows show them at once
   private final Map<String, Long> bytesByMapName = new HashMap<>();
   private MapBrowserView view;
+  private MapSort sort;
   private String searchedText = "";
+  private Set<Tag> checkedTags = Set.of();
   // the row whose map the details show; rows are rebuilt on refresh, then the details are too
   private @Nullable MapRow detailsRow;
 
   /**
    * @param maps The maps of the list; asked again on {@link #refresh()}.
-   * @param toolbar The search and the view switch, shown above the maps.
+   * @param toolbar The search and the sort, tag and view buttons, shown above the maps.
    */
   MapList(
       final Supplier<List<ManagedMap>> maps,
       final Caches previews,
       final Actions actions,
       final JComponent toolbar,
-      final MapBrowserView view) {
+      final MapBrowserView view,
+      final MapSort sort) {
     this.maps = maps;
     this.previews = previews;
     this.actions = actions;
     this.view = view;
+    this.sort = sort;
     details = new MapDetails(previews.details(), actions);
     emptyText.setAlignmentX(Component.LEFT_ALIGNMENT);
     emptyText.setBorder(BorderFactory.createEmptyBorder(24, 12, 0, 0));
     emptyText.setForeground(LookAndFeel.getSecondaryTextColor());
     final JScrollPane scrollPane = SwingComponents.newJScrollPane(rows);
     scrollPane.setBorder(BorderFactory.createEmptyBorder());
-    scrollPane.getVerticalScrollBar().setUnitIncrement(24);
     final JPanel top = new JPanel();
     top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
     toolbar.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -187,6 +191,12 @@ final class MapList {
     refresh();
   }
 
+  /** Shows the maps in the order, eg after the player chose it; the selection stays. */
+  void sortBy(final MapSort newSort) {
+    sort = newSort;
+    refresh();
+  }
+
   /** Builds the rows again from the maps, eg after a map was installed or uninstalled. */
   void refresh() {
     rows.removeAll();
@@ -203,7 +213,7 @@ final class MapList {
     rows.add(emptyText);
     final Listener listener = new Listener(this::clicked, this::ctrlClicked, this::shiftClicked);
     maps.get().stream()
-        .sorted(Comparator.comparing(map -> map.getMapName().toLowerCase(Locale.ROOT)))
+        .sorted(sort.comparator())
         .forEach(
             map -> {
               final MapRow row = new MapRow(map, view, previews, actions, listener);
@@ -243,11 +253,24 @@ final class MapList {
     showMatchingMaps();
   }
 
+  /** Shows only the maps with the tags that also match the search; none shows all. */
+  void filterByTags(final Set<Tag> tags) {
+    checkedTags = Set.copyOf(tags);
+    showMatchingMaps();
+  }
+
   private void showMatchingMaps() {
     rowsByMapName
         .values()
-        .forEach(row -> row.setVisible(matchesSearch(row.getMap(), searchedText)));
-    emptyText.setText(searchedText.isEmpty() ? "No maps here yet." : "No maps match your search.");
+        .forEach(
+            row ->
+                row.setVisible(
+                    matchesSearch(row.getMap(), searchedText)
+                        && MapTagFilter.matches(row.getMap(), checkedTags)));
+    emptyText.setText(
+        searchedText.isEmpty() && checkedTags.isEmpty()
+            ? "No maps here yet."
+            : "No maps match your search.");
     emptyText.setVisible(getShownMapNames().isEmpty());
     showSelection();
     rows.revalidate();
@@ -267,17 +290,8 @@ final class MapList {
   private static boolean matchesSearch(final ManagedMap map, final String lowerCaseText) {
     return lowerCaseText.isEmpty()
         || map.getMapName().toLowerCase(Locale.ROOT).contains(lowerCaseText)
-        || tagValues(map.getMapDownloadItem()).stream()
-            .anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(lowerCaseText));
-  }
-
-  /** The values of the map's tags in display order, eg its category. */
-  private static List<String> tagValues(final MapDownloadItem download) {
-    return download.getMapTags().stream()
-        .sorted(Comparator.comparing(MapTag::getDisplayOrder))
-        .map(MapTag::getValue)
-        .filter(value -> !value.isBlank())
-        .toList();
+        || Tag.of(map.getMapDownloadItem()).stream()
+            .anyMatch(tag -> tag.value().toLowerCase(Locale.ROOT).contains(lowerCaseText));
   }
 
   /**

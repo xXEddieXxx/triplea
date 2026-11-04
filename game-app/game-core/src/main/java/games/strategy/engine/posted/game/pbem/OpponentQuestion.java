@@ -4,33 +4,26 @@ import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.IGame;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
-import games.strategy.triplea.delegate.GameStepPropertiesHelper;
-import games.strategy.triplea.ui.history.HistoryLog;
+import games.strategy.engine.posted.game.pbf.NodeBbForumPoster;
 import java.util.Optional;
 import java.util.function.Supplier;
 import javax.swing.JButton;
-import javax.swing.JFrame;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A question to the opponent of a game played by forum or email, as its players ask for a decision
  * of the other side during a turn, eg whether to scramble or which units to lose: posted to the
- * game's thread, or sent by email, with the turn so far and the save game, which the opponent can
- * look at. The decision's dialog stays open for the answer.
+ * game's thread, or sent by email, with the save game, which the opponent can look at. The post is
+ * short, the game, the round and the question, so the opponent can answer from the forum's page.
+ * The decision's dialog stays open for the answer; the button tells how the asking went, so no
+ * window opens over the dialog.
  */
+@RequiredArgsConstructor
 public final class OpponentQuestion {
   private static final String TITLE = "Decision Request";
 
+  /** The game, which is saved for the opponent. */
   private final IGame game;
-  private final JFrame frame;
-
-  /**
-   * @param game the game, which is saved for the opponent
-   * @param frame the game's window
-   */
-  public OpponentQuestion(final IGame game, final JFrame frame) {
-    this.game = game;
-    this.frame = frame;
-  }
 
   /**
    * Whether the decision is the opponent's: the game goes by forum or email, and the deciding
@@ -52,25 +45,41 @@ public final class OpponentQuestion {
     if (!isOpponentsDecision(decider)) {
       return Optional.empty();
     }
-    final JButton ask =
-        new JButton(
-            game.getData().getProperties().get(IForumPoster.NAME) == null
-                ? "Ask by email"
-                : "Ask in the forum");
+    final String label =
+        game.getData().getProperties().get(IForumPoster.NAME) == null
+            ? "Ask by email"
+            : "Ask in the forum";
+    final JButton ask = new JButton(label);
     ask.setToolTipText(
-        "Posts the question with the turn so far and the save game for "
+        "Posts the question with the save game for "
             + decider.getName()
             + "; enter the answer here once it came");
-    ask.addActionListener(e -> ask(decider, question.get()));
+    ask.addActionListener(e -> ask(ask, label, decider, question.get()));
     return Optional.of(ask);
   }
 
-  private void ask(final GamePlayer decider, final String question) {
+  private void ask(
+      final JButton button, final String label, final GamePlayer decider, final String question) {
     final GameData data = game.getData();
-    final HistoryLog turn = new HistoryLog(frame);
-    turn.append(decider.getName() + ", your decision: " + question + "\n\n");
-    turn.printFullTurn(data, false, GameStepPropertiesHelper.getTurnSummaryPlayers(data));
+    button.setEnabled(false);
+    button.setText("Asking...");
     new PbemMessagePoster(data, decider, data.getSequence().getRound(), TITLE)
-        .postTurn(TITLE, turn, true, null, frame, game, null);
+        .postInBackground(
+            TITLE,
+            "",
+            decider.getName() + ", your decision: " + question,
+            null,
+            game,
+            answer -> {
+              final boolean heldBack = NodeBbForumPoster.isHeldBack(answer);
+              button.setText(heldBack ? "Asked, awaits a moderator" : "Asked");
+              button.setToolTipText(
+                  (heldBack ? answer : "Posted.") + " Enter the answer here once it came");
+            },
+            why -> {
+              button.setEnabled(true);
+              button.setText(label + " again");
+              button.setToolTipText("Not posted: " + why);
+            });
   }
 }

@@ -26,12 +26,14 @@ import games.strategy.engine.lobby.client.login.LoginResult;
 import games.strategy.engine.lobby.client.ui.LobbyModel;
 import games.strategy.engine.lobby.client.ui.LobbyPanel;
 import games.strategy.engine.posted.game.pbem.IEmailSender;
+import games.strategy.engine.posted.game.pbem.PbemMessagePoster;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
 import java.awt.Dimension;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -66,10 +68,37 @@ public class HeadedServerSetupModel {
   }
 
   /**
+   * Opens a save the player dropped onto the window, as one from outside ({@link #openSavedGame}).
+   * A game of this computer is then to start at once, as it was saved; an email or forum game goes
+   * to its own screen, which keeps its posting settings and where the player chooses the nations.
+   * On a joined game, whose host chooses the game, a drop does nothing, as Load game is off there.
+   *
+   * @return whether the save's game is to start now
+   */
+  public boolean openDroppedSave(final Path save) {
+    if (!gameSelectorModel.isCanSelect() || !openSavedGame(save)) {
+      return false;
+    }
+    if (!(panel instanceof LocalSetupPanel)) {
+      return false;
+    }
+    final GameData data = gameSelectorModel.getGameData();
+    if (PbemMessagePoster.gameDataHasPlayByEmailOrForumMessengers(data)) {
+      // dropped on the screen for games on this computer, which would drop the settings
+      showScreenOf(data);
+      return false;
+    }
+    // as the Start button: only a game the screen can start
+    return panel.canGameStart();
+  }
+
+  /**
    * Opens a save from outside the client, eg from the file manager: on the main menu, which does
    * not show the selected game, like Continue; on a setup screen into that screen.
+   *
+   * @return whether the save opened: not when it did not load or the player stayed in the lobby
    */
-  public void openSavedGame(final Path save) {
+  public boolean openSavedGame(final Path save) {
     // the main menu and the lobby show no game selection: continue the save on its screen
     if (panel == null || panel.isFullWindow()) {
       // the save would replace the lobby and end its connection: only if the player agrees
@@ -81,24 +110,30 @@ public class HeadedServerSetupModel {
                   "Leave the lobby?",
                   JOptionPane.OK_CANCEL_OPTION)
               != JOptionPane.OK_OPTION) {
-        return;
+        return false;
       }
-      continueSavedGame(save);
-    } else {
-      saveGameLoader.test(save);
+      return continueSavedGame(save);
     }
+    return saveGameLoader.test(save);
   }
 
   /**
    * Continues a saved game on its setup screen: an email or forum game on the screen of its kind,
    * which keeps its posting settings, any other game on the screen for games on this computer. If
    * the save does not load, the current screen stays.
+   *
+   * @return whether the save loaded
    */
-  public void continueSavedGame(final Path save) {
+  public boolean continueSavedGame(final Path save) {
     if (!saveGameLoader.test(save)) {
-      return;
+      return false;
     }
-    final GameData data = gameSelectorModel.getGameData();
+    showScreenOf(gameSelectorModel.getGameData());
+    return true;
+  }
+
+  /** The screen of the game's kind: by forum, by email, or else on this computer. */
+  private void showScreenOf(final @Nullable GameData data) {
     if (data != null && data.getProperties().get(IForumPoster.NAME) != null) {
       showPbf();
     } else if (data != null && data.getProperties().get(IEmailSender.SUBJECT) != null) {

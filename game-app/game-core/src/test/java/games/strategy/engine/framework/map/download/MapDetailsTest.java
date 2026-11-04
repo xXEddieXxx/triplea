@@ -22,6 +22,7 @@ import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
+import org.triplea.http.client.lobby.maps.listing.MapTag;
 import org.triplea.map.description.file.MapDescriptionYaml;
 import org.triplea.map.description.file.MapDescriptionYaml.MapGame;
 
@@ -57,6 +58,30 @@ final class MapDetailsTest {
             new Fact("Newest version", "9 Jun 2025"),
             new Fact("Size", "2 MB"),
             new Fact("Downloads", MapRating.downloadsText("World War II Global")));
+  }
+
+  @DisplayName("The details end with the tags, the values of one tag on one line")
+  @Test
+  void tagsAreFacts() {
+    final ManagedMap map =
+        new ManagedMap(
+            MapDownloadItem.builder()
+                .downloadUrl("")
+                .previewImageUrl("")
+                .mapName("World War II Global")
+                .description("description")
+                .lastCommitDateEpochMilli(NEWER.toEpochMilli())
+                .downloadSizeInBytes(2L * 1024 * 1024)
+                .mapTags(
+                    List.of(
+                        MapTag.builder().name("Category").value("Pacific").displayOrder(3).build(),
+                        MapTag.builder().name("Era").value("Modern").displayOrder(2).build(),
+                        MapTag.builder().name("Category").value("WW2").displayOrder(1).build()))
+                .build());
+
+    assertThat(MapDetails.facts(map))
+        .as("in display order, so 'WW2' before 'Pacific'")
+        .endsWith(new Fact("Category", "WW2, Pacific"), new Fact("Era", "Modern"));
   }
 
   @DisplayName("In a short window the ratings scroll below the facts and buttons, not over them")

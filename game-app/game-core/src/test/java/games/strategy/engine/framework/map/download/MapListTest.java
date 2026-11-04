@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
+import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import games.strategy.triplea.settings.ClientSetting;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import javax.swing.JPanel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -204,6 +206,99 @@ final class MapListTest {
         .contains(MapBrowserView.LIST_WITH_PICTURES);
   }
 
+  @DisplayName("Sorted by rating, the highest rated map comes first, equal ones by name")
+  @Test
+  void sortedByRating() {
+    final MapList list = givenList(givenMapsToSort());
+
+    list.sortBy(MapSort.RATING);
+
+    assertThat(list.getShownMapNames())
+        .as("example ratings 4.6, 4.4, 4.4, 3.5 and 3.1")
+        .containsExactly("Iron War", "Europe", "Total World War", "Pacific", "World War II Global");
+  }
+
+  @DisplayName("Sorted by downloads, the most downloaded map comes first")
+  @Test
+  void sortedByDownloads() {
+    final MapList list = givenList(givenMapsToSort());
+
+    list.sortBy(MapSort.DOWNLOADS);
+
+    assertThat(list.getShownMapNames())
+        .as("example downloads 23,544, 12,760, 12,192, 7,084 and 1,892")
+        .containsExactly("World War II Global", "Total World War", "Europe", "Pacific", "Iron War");
+  }
+
+  @DisplayName("Another order keeps the selected map and the search")
+  @Test
+  void sortKeepsSelectionAndSearch() {
+    final MapList list = givenList(givenMapsToSort());
+    list.search("war");
+    list.select("Total World War");
+
+    list.sortBy(MapSort.RATING);
+
+    assertThat(list.getShownMapNames())
+        .as("only the maps with 'war' in their name, highest rated first")
+        .containsExactly("Iron War", "Total World War", "World War II Global");
+    assertThat(list.getSelectedMapName())
+        .as("the chosen map stays chosen in the new order")
+        .contains("Total World War");
+  }
+
+  @DisplayName("The maps window sorts by name until the player chooses another order")
+  @Test
+  void defaultSort() {
+    assertThat(ClientSetting.mapBrowserSort.getDefaultValue())
+        .as("a first look at the maps finds them by name")
+        .contains(MapSort.NAME);
+  }
+
+  @DisplayName("Checked tags and the search show only the maps that match both")
+  @Test
+  void tagsAndSearchCombine() {
+    final MapList list =
+        givenList(
+            List.of(
+                givenMap("Pacific", "WW2"),
+                givenMap("World War II Europe", "WW2"),
+                givenMap("World at War", "Other"),
+                givenMap("Napoleonic Empires", "Napoleonic")));
+
+    list.search("world");
+    list.filterByTags(Set.of(new Tag("Category", "WW2"), new Tag("Category", "Napoleonic")));
+
+    assertThat(list.getShownMapNames())
+        .as("'World at War' matches only the search, 'Pacific' and 'Napoleonic' only the tags")
+        .containsExactly("World War II Europe");
+  }
+
+  @DisplayName("A map without tags shows only while no tag is checked")
+  @Test
+  void untaggedMapsOnlyWithoutTagFilter() {
+    final MapList list =
+        givenList(List.of(givenMap("Pacific", "WW2"), givenMapWithTags("Europe", List.of())));
+    list.filterByTags(Set.of(new Tag("Category", "WW2")));
+    final List<String> withTag = list.getShownMapNames();
+
+    list.filterByTags(Set.of());
+
+    assertThat(List.of(withTag, list.getShownMapNames()))
+        .as("filtered by the tag, then all maps again")
+        .containsExactly(List.of("Pacific"), List.of("Europe", "Pacific"));
+  }
+
+  /** Maps whose example ratings and downloads are in another order than their names. */
+  private static List<ManagedMap> givenMapsToSort() {
+    return List.of(
+        givenMap("Pacific", "WW2"),
+        givenMap("Europe", "WW2"),
+        givenMap("World War II Global", "WW2"),
+        givenMap("Iron War", "WW1"),
+        givenMap("Total World War", "WW2"));
+  }
+
   private static MapList givenList(final List<ManagedMap> maps) {
     return givenList(maps, NO_ACTIONS);
   }
@@ -214,10 +309,16 @@ final class MapListTest {
         Caches.newCaches(),
         actions,
         new JPanel(),
-        MapBrowserView.LIST_WITH_PICTURES);
+        MapBrowserView.LIST_WITH_PICTURES,
+        MapSort.NAME);
   }
 
   private static ManagedMap givenMap(final String name, final String category) {
+    return givenMapWithTags(
+        name, List.of(MapTag.builder().name("Category").value(category).displayOrder(1).build()));
+  }
+
+  private static ManagedMap givenMapWithTags(final String name, final List<MapTag> tags) {
     return new ManagedMap(
         MapDownloadItem.builder()
             .downloadUrl("")
@@ -226,8 +327,7 @@ final class MapListTest {
             .description("description")
             .lastCommitDateEpochMilli(60L)
             .downloadSizeInBytes(1024L)
-            .mapTags(
-                List.of(MapTag.builder().name("Category").value(category).displayOrder(1).build()))
+            .mapTags(tags)
             .build());
   }
 }

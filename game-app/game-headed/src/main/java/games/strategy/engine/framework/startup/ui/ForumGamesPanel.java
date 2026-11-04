@@ -12,6 +12,7 @@ import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.Player;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.SaveGame;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.ThreadPage;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.ThreadPost;
+import games.strategy.engine.posted.game.pbf.OldForumGames;
 import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.BorderLayout;
@@ -24,7 +25,6 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.io.Serial;
 import java.net.URI;
@@ -76,6 +76,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.triplea.awt.OpenFileUtility;
 import org.triplea.swing.DocumentListenerBuilder;
 import org.triplea.swing.ScrollableJPanel;
+import org.triplea.swing.SwingComponents;
+import org.triplea.swing.WrapLayout;
 import org.triplea.swing.WrappingText;
 
 /**
@@ -89,10 +91,12 @@ import org.triplea.swing.WrappingText;
  * Each post is a card with its author's avatar in the forum's colors, the player's own marked in
  * the highlight color of the TripleA themes, its text as the forum formats it ({@link ForumPost}).
  * A save game in a post opens with one click, locally: in the player's own games to play on, in the
- * others' to view only ({@link HeadedServerSetupModel#viewSavedGame}). The page writes to the forum
- * only when the player says so: an answer, written below the posts of any game with a bar for the
- * forum's formatting, eg a request to join a game of others (Join game), and Watch, which follows a
- * game.
+ * others' to view only ({@link HeadedServerSetupModel#viewSavedGame}); Join game opens the newest
+ * save of a game of others to play on, where the player chooses the nations. My games can move to
+ * Old games, eg finished ones, on this computer only ({@link OldForumGames}). The page writes to
+ * the forum only when the player says so: an answer, written below the posts of any game in a
+ * {@link ForumMessageEditor}, eg a request to join where the newest posts hold no save, and Watch,
+ * which follows a game.
  */
 @Slf4j
 final class ForumGamesPanel extends JPanel {
@@ -112,9 +116,6 @@ final class ForumGamesPanel extends JPanel {
 
   private static final int BAR = 3;
 
-  /** The size of the icons of the answer's formatting bar. */
-  private static final int FORMAT_ICON = 20;
-
   private static final DateTimeFormatter TIME =
       DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm").withZone(ZoneId.systemDefault());
   private static final String SIGNED_OUT = "signedOut";
@@ -124,8 +125,12 @@ final class ForumGamesPanel extends JPanel {
   private static final String SIGN_IN_HINT =
       "Signing in opens the forum's own page in a window of TripleA.";
 
-  /** What Join game writes into the answer box, for the player to finish and send. */
+  /** What Join game writes into the answer box where the thread has no save to open. */
   private static final String JOIN_REQUEST = "I'd like to join this game. I can take over: ";
+
+  private static final String JOIN_GAME = "Join game";
+  private static final String MOVE_TO_OLD_GAMES = "Move to old games";
+  private static final String BACK_TO_MY_GAMES = "Back to my games";
 
   private static final String WATCH = "Watch";
   private static final String WATCHING = "✓  Watching";
@@ -223,14 +228,22 @@ final class ForumGamesPanel extends JPanel {
   private final JToggleButton yourTurn = newFilter("Your turn");
   private final JToggleButton waiting = newFilter("Waiting");
   private final JToggleButton watchedGames = newFilter("Watching");
-  private final JPanel turnFilters = new JPanel(new FlowLayout(FlowLayout.LEFT, MenuSpacing.XS, 0));
+  private final JToggleButton oldGames = newFilter("Old games");
+  // five filters may not fit one row of the list, eg with large text: a second row shows then
+  private final JPanel turnFilters =
+      new JPanel(new WrapLayout(FlowLayout.LEFT, MenuSpacing.XS, MenuSpacing.XS));
 
   @Getter(value = AccessLevel.PACKAGE, onMethod_ = @VisibleForTesting)
   private final JList<GameThread> threads = new JList<>(threadsModel);
 
   private final RoundedPanel threadCard = new RoundedPanel(new BorderLayout());
   private final JPanel postsArea = new JPanel(new BorderLayout());
-  private final JTextArea message = new JTextArea(4, 30);
+  private final ForumMessageEditor editor =
+      new ForumMessageEditor(
+          "Write an answer; Preview shows it as the forum will",
+          this::forumAddress,
+          this::attachPicture);
+  private final JTextArea message = editor.getTextArea();
   private final JLabel attachment = new JLabel();
   private final JTextArea sendStatus = newSecondaryText();
   private final JButton sendButton = new JButton("Send");
@@ -435,7 +448,8 @@ final class ForumGamesPanel extends JPanel {
     // the builder calls back on a timer's thread
     new DocumentListenerBuilder(() -> SwingUtilities.invokeLater(this::showFound)).attachTo(search);
     final ButtonGroup filters = new ButtonGroup();
-    for (final JToggleButton filter : List.of(allGames, yourTurn, waiting, watchedGames)) {
+    for (final JToggleButton filter :
+        List.of(allGames, yourTurn, waiting, watchedGames, oldGames)) {
       filters.add(filter);
       filter.addActionListener(e -> showFound());
       turnFilters.add(filter);
@@ -444,6 +458,7 @@ final class ForumGamesPanel extends JPanel {
     yourTurn.setToolTipText("Games where another player posted last, eg the turn before yours");
     waiting.setToolTipText("Games where you posted last: the others are to move");
     watchedGames.setToolTipText("Games of others you watch");
+    oldGames.setToolTipText("Games you moved here, eg finished ones; the forum keeps them");
     turnFilters.setOpaque(false);
     final JPanel tools = new JPanel(new BorderLayout(0, MenuSpacing.XS));
     tools.setOpaque(false);
@@ -492,12 +507,16 @@ final class ForumGamesPanel extends JPanel {
     }
     final String wanted = search.getText().strip().toLowerCase(Locale.ROOT);
     final GameThread chosen = threads.getSelectedValue();
+    final Set<String> old = OldForumGames.keys();
     threadsModel.clear();
     loaded.stream()
         .filter(game -> wanted.isEmpty() || game.title().toLowerCase(Locale.ROOT).contains(wanted))
+        // the player's old games only under Old games; Browse games shows every game
+        .filter(game -> view != View.MINE || oldGames.isSelected() == old.contains(keyOf(game)))
         .filter(
             game ->
                 allGames.isSelected()
+                    || oldGames.isSelected()
                     || (yourTurn.isSelected() && statusOf(game) == Status.YOUR_TURN)
                     || (waiting.isSelected() && statusOf(game) == Status.WAITING)
                     || (watchedGames.isSelected() && statusOf(game) == Status.WATCHING))
@@ -525,6 +544,11 @@ final class ForumGamesPanel extends JPanel {
     }
   }
 
+  /** A game as Old games keeps it. */
+  private String keyOf(final GameThread game) {
+    return OldForumGames.keyOf(forum.url(), game.topicId());
+  }
+
   /** The games waiting for the player first, the games of others the player watches last. */
   private int rankOf(final GameThread game) {
     return switch (statusOf(game)) {
@@ -540,7 +564,8 @@ final class ForumGamesPanel extends JPanel {
     scroll.setOpaque(false);
     scroll.getViewport().setOpaque(false);
     scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    scroll.getVerticalScrollBar().setUnitIncrement(24);
+    // as fast as the other pages; a list keeps scrolling by its rows
+    SwingComponents.setScrollSpeed(scroll);
     return scroll;
   }
 
@@ -847,11 +872,21 @@ final class ForumGamesPanel extends JPanel {
     final JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, MenuSpacing.S, 0));
     actions.setOpaque(false);
     if (isOthersGame(thread)) {
-      final JButton join = new JButton("Join game");
+      final JButton join = new JButton(JOIN_GAME);
       join.setToolTipText(
-          "Asks the game's players in its thread whether you can take over a nation");
-      join.addActionListener(e -> askToJoin());
+          "Opens the newest save game of the thread: choose the nations you play and go on");
+      join.addActionListener(e -> joinGame(thread, join));
       actions.add(join);
+    }
+    if (view == View.MINE) {
+      final JButton old =
+          new JButton(
+              OldForumGames.keys().contains(keyOf(thread)) ? BACK_TO_MY_GAMES : MOVE_TO_OLD_GAMES);
+      LookAndFeel.setBorderlessButtonStyle(old);
+      old.setToolTipText(
+          "Old games keeps finished games out of the way; the forum keeps them all the same");
+      old.addActionListener(e -> moveToOldGames(thread, old));
+      actions.add(old);
     }
     watchButton = newWatchButton(thread);
     actions.add(watchButton);
@@ -865,6 +900,20 @@ final class ForumGamesPanel extends JPanel {
   }
 
   /**
+   * Moves the game to Old games or back to the player's games, here only: the forum keeps it, and
+   * its new posts still show there.
+   */
+  private void moveToOldGames(final GameThread game, final JButton button) {
+    final boolean moving = !OldForumGames.keys().contains(keyOf(game));
+    if (!OldForumGames.move(forum.url(), game.topicId())) {
+      sendStatus.setText("Old games holds no more games: move some back to your games first.");
+      return;
+    }
+    button.setText(moving ? BACK_TO_MY_GAMES : MOVE_TO_OLD_GAMES);
+    showFound();
+  }
+
+  /**
    * A game of others: one the player watches without playing, or one of the forum's games that is
    * not among the player's own.
    */
@@ -872,13 +921,71 @@ final class ForumGamesPanel extends JPanel {
     return game.onlyWatched() || (view == View.BROWSE && !ownGames.contains(game.topicId()));
   }
 
-  /** Fills the answer box with a request to join the game, for the player to finish and send. */
-  private void askToJoin() {
+  /**
+   * Joins the game: opens its newest save game on the play by forum setup, where the player chooses
+   * the nations to play and goes on; the save keeps posting to the thread. Without a save in the
+   * newest posts, writes a request to join into the answer, for the player to finish and send.
+   */
+  private void joinGame(final GameThread thread, final JButton join) {
+    join.setEnabled(false);
+    join.setText("Reading the newest save...");
+    final NodeBbGameThreads reader = newReader();
+    final Path folder = ClientSetting.saveGamesFolderPath.getValueOrThrow().resolve("forum");
+    inBackground(
+        () -> {
+          final Optional<SaveGame> save = newestSave(reader.newestPage(thread));
+          return save.isPresent()
+              ? Optional.of(reader.download(save.get(), folder))
+              : Optional.<Path>empty();
+        },
+        file -> {
+          join.setEnabled(true);
+          join.setText(JOIN_GAME);
+          file.ifPresentOrElse(
+              save -> {
+                // as the save buttons: not when the player went on meanwhile, eg to a screen
+                // whose game it would replace
+                if (join.isShowing()) {
+                  model.continueSavedGame(save);
+                }
+              },
+              () -> askToJoin(thread));
+        },
+        error -> {
+          join.setEnabled(true);
+          join.setText(JOIN_GAME);
+          // the player can still ask the game's players
+          if (askToJoin(thread)) {
+            sendStatus.setText("The newest save game could not be read: " + error);
+          }
+        });
+  }
+
+  /** The newest save game of the posts, eg the last turn's; none if no post has one. */
+  @VisibleForTesting
+  static Optional<SaveGame> newestSave(final ThreadPage page) {
+    return page.posts().reversed().stream()
+        .flatMap(post -> post.saveGames().reversed().stream())
+        .findFirst();
+  }
+
+  /**
+   * Fills the answer box with a request to join the game, for the player to finish and send.
+   *
+   * @return whether the game is still shown: the answer box is another game's once the player chose
+   *     that meanwhile, and the request stays out of it
+   */
+  private boolean askToJoin(final GameThread thread) {
+    if (!isSameGame(thread, shownThread)) {
+      return false;
+    }
     if (message.getText().isBlank()) {
       message.setText(JOIN_REQUEST);
     }
     message.setCaretPosition(message.getText().length());
-    message.requestFocusInWindow();
+    // also from Preview: the request is there to finish
+    editor.showWriting();
+    return true;
   }
 
   /** Watch, off until the forum told whether the player follows the game. */
@@ -1097,13 +1204,9 @@ final class ForumGamesPanel extends JPanel {
             BorderFactory.createMatteBorder(1, 0, 0, 0, LookAndFeel.getSeparatorColor()),
             BorderFactory.createEmptyBorder(
                 MenuSpacing.M, MenuSpacing.L, MenuSpacing.M, MenuSpacing.L)));
-    message.setText("");
-    message.setLineWrap(true);
-    message.setWrapStyleWord(true);
-    message.putClientProperty(
-        "JTextField.placeholderText", "Write an answer; the forum formats it as Markdown");
-    composer.add(newFormatBar(), BorderLayout.NORTH);
-    composer.add(new JScrollPane(message), BorderLayout.CENTER);
+    // also back to Write: a preview would show the other game's answer
+    editor.clear();
+    composer.add(editor, BorderLayout.CENTER);
     final JPanel actions = new JPanel(new BorderLayout(MenuSpacing.S, 0));
     actions.setOpaque(false);
     final JButton attach = new JButton("Attach save game...");
@@ -1128,66 +1231,8 @@ final class ForumGamesPanel extends JPanel {
   }
 
   /**
-   * Bold, italic, a quote, a list and a link, written into the answer as the forum reads them, and
-   * a picture, uploaded and linked as the forum's editor does; letters and icons in the text color,
-   * large enough to read at a glance.
-   */
-  private JComponent newFormatBar() {
-    final JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-    bar.setOpaque(false);
-    final JButton bold = newFormatButton("Bold", () -> wrapSelection("**", "**"));
-    final float size = bold.getFont().getSize2D();
-    bold.setText("B");
-    bold.setFont(bold.getFont().deriveFont(Font.BOLD, size + 3));
-    bar.add(bold);
-    final JButton italic = newFormatButton("Italic", () -> wrapSelection("*", "*"));
-    italic.setText("I");
-    // a serif "I" leans so it reads as italic, unlike a sans serif bar
-    italic.setFont(new Font(Font.SERIF, Font.BOLD | Font.ITALIC, Math.round(size + 4)));
-    bar.add(italic);
-    bar.add(newIconButton("Quote", Kind.QUOTE, () -> startLines("> ")));
-    bar.add(newIconButton("List", Kind.LIST, () -> startLines("- ")));
-    bar.add(newIconButton("Link", Kind.LINK, () -> wrapSelection("[", "](https://)")));
-    bar.add(newIconButton("Picture", Kind.PICTURE, this::choosePicture));
-    return bar;
-  }
-
-  /** A button of the bar: flat until the mouse is over it, as in a tool bar. */
-  private JButton newFormatButton(final String what, final Runnable format) {
-    final JButton button = new JButton();
-    button.putClientProperty("JButton.buttonType", "toolBarButton");
-    button.setFocusPainted(false);
-    button.setMargin(new Insets(MenuSpacing.XS, MenuSpacing.S, MenuSpacing.XS, MenuSpacing.S));
-    button.setToolTipText(what);
-    button.getAccessibleContext().setAccessibleName(what);
-    button.addActionListener(
-        e -> {
-          format.run();
-          message.requestFocusInWindow();
-        });
-    return button;
-  }
-
-  private JButton newIconButton(final String what, final Kind kind, final Runnable format) {
-    final JButton button = newFormatButton(what, format);
-    final Color text = UIManager.getColor("Label.foreground");
-    button.setIcon(new LineIcon(kind, FORMAT_ICON, text == null ? Color.GRAY : text));
-    return button;
-  }
-
-  /** Lets the player choose a picture on this computer to attach. */
-  private void choosePicture() {
-    final JFileChooser chooser = new JFileChooser();
-    chooser.setFileFilter(
-        new FileNameExtensionFilter("Pictures", "png", "jpg", "jpeg", "gif", "webp"));
-    if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-      attachPicture(chooser.getSelectedFile().toPath());
-    }
-  }
-
-  /**
-   * Uploads the picture to the forum, then links it at the caret, as the forum's editor does: the
-   * post shows it once sent.
+   * Uploads the picture to the forum, chosen, pasted or dropped into the answer, then links it at
+   * the caret, as the forum's editor does: Preview and the post show it.
    */
   @VisibleForTesting
   void attachPicture(final Path picture) {
@@ -1203,7 +1248,7 @@ final class ForumGamesPanel extends JPanel {
           if (isSameGame(thread, shownThread)) {
             message.insert(
                 "![" + pictureName(picture) + "](" + address + ")", message.getCaretPosition());
-            sendStatus.setText("");
+            sendStatus.setText("Picture added: Preview shows it as the post will.");
           } else {
             // the answer box is another game's now
             sendStatus.setText(
@@ -1218,31 +1263,6 @@ final class ForumGamesPanel extends JPanel {
     final String name = String.valueOf(picture.getFileName());
     final int dot = name.lastIndexOf('.');
     return (dot > 0 ? name.substring(0, dot) : name).replaceAll("[\\[\\]]", " ");
-  }
-
-  /** Puts the marks around the text chosen; with none chosen, the caret between them. */
-  private void wrapSelection(final String before, final String after) {
-    final int start = message.getSelectionStart();
-    final String chosen = Optional.ofNullable(message.getSelectedText()).orElse("");
-    message.replaceSelection(before + chosen + after);
-    if (chosen.isEmpty()) {
-      message.setCaretPosition(start + before.length());
-    }
-  }
-
-  /** Starts each line chosen, or the caret's line, with the mark, eg "> " for a quote. */
-  private void startLines(final String mark) {
-    final String text = message.getText();
-    // a negative start finds no line break: the first line
-    final int from = text.lastIndexOf('\n', message.getSelectionStart() - 1) + 1;
-    // a selection that ends with a line break ends on that line, not the next
-    final int end = message.getSelectionEnd();
-    final boolean endsWithBreak = end > message.getSelectionStart() && text.charAt(end - 1) == '\n';
-    final int lineEnd = text.indexOf('\n', endsWithBreak ? end - 1 : end);
-    final int to = lineEnd < 0 ? text.length() : lineEnd;
-    final String marked = mark + text.substring(from, to).replace("\n", "\n" + mark);
-    message.replaceRange(marked, from, to);
-    message.setCaretPosition(from + marked.length());
   }
 
   private void chooseSave() {
@@ -1283,7 +1303,7 @@ final class ForumGamesPanel extends JPanel {
                   + (heldBack ? ". The forum shows it once a moderator approved it." : "."));
           // what the player wrote meanwhile stays
           if (message.getText().strip().equals(text)) {
-            message.setText("");
+            editor.clear();
           }
           if (Objects.equals(attachedSave, save)) {
             attachedSave = null;

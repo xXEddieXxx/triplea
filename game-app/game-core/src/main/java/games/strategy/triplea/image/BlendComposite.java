@@ -37,18 +37,24 @@ class BlendComposite implements Composite {
   }
 
   /**
-   * The blend the map's properties ask for; a mode or strength they cannot mean, eg "screen", "0,5"
-   * or "1.5", blends normally at half strength instead, so the relief still shows.
+   * The blend the map's properties ask for. A mode it cannot mean, eg "screen", blends normally at
+   * half strength, as the strength was meant for that mode; a strength it cannot mean, eg "0,5" or
+   * "1.5", blends at half strength in the map's mode. For map makers, so logged at info, not shown.
    */
   static BlendComposite newForMap(final MapData mapData) {
+    final BlendingMode mode;
     try {
-      return new BlendComposite(
-          BlendingMode.valueOf(mapData.getMapBlendMode().strip().toUpperCase(Locale.ENGLISH)),
-          mapData.getMapBlendAlpha());
+      mode = BlendingMode.valueOf(mapData.getMapBlendMode().strip().toUpperCase(Locale.ENGLISH));
     } catch (final IllegalArgumentException e) {
-      // also a NumberFormatException; for map makers, so not shown to the player
-      log.info("Invalid map.mapBlendMode or map.mapBlendAlpha, blending normally", e);
+      log.info("Invalid map.mapBlendMode, blending normally at half strength", e);
       return new BlendComposite(BlendingMode.NORMAL, 0.5f);
+    }
+    try {
+      // the constructor checks the strength, as unreadable is a NumberFormatException
+      return new BlendComposite(mode, mapData.getMapBlendAlpha());
+    } catch (final IllegalArgumentException e) {
+      log.info("Invalid map.mapBlendAlpha, blending at half strength", e);
+      return new BlendComposite(mode, 0.5f);
     }
   }
 

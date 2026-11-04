@@ -1234,7 +1234,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           final String optionAttack = "Attack";
           final String optionNone = "None";
           final Object[] options =
-              new OpponentQuestion(game, this)
+              new OpponentQuestion(game)
                   .newAskButton(
                       decider,
                       () ->
@@ -1385,7 +1385,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           noneButton.addActionListener(
               e -> getOptionPane((JComponent) e.getSource()).setValue(noneButton));
           final Object[] options =
-              new OpponentQuestion(game, this)
+              new OpponentQuestion(game)
                   .newAskButton(
                       decider,
                       () ->

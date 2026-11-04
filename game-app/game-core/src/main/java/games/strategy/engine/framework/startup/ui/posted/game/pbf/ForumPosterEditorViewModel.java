@@ -79,6 +79,9 @@ class ForumPosterEditorViewModel {
   /** The existing thread as entered: its number or its address. */
   @Getter private String topicId = "";
 
+  /** Whether the player chose the thread on this screen: typed, picked, or new or existing. */
+  private boolean threadChosenHere;
+
   @Setter @Getter private boolean attachSaveGameToSummary = true;
   @Setter @Getter private boolean alsoPostAfterCombatMove;
   @Getter private String forumUsername;
@@ -171,7 +174,8 @@ class ForumPosterEditorViewModel {
     return isTripleaForum() ? ClientSetting.tripleaForumUserId : ClientSetting.aaForumUserId;
   }
 
-  private String getForumUrl() {
+  String getForumUrl() {
+    // as the session and the token: any forum but the TripleA forum is the A&A forum here
     return isTripleaForum() ? UrlConstants.TRIPLEA_FORUM : UrlConstants.AXIS_AND_ALLIES_FORUM;
   }
 
@@ -281,6 +285,7 @@ class ForumPosterEditorViewModel {
     }
 
     this.topicId = topicId;
+    threadChosenHere = true;
     readyCallback.run();
   }
 
@@ -293,6 +298,10 @@ class ForumPosterEditorViewModel {
   }
 
   synchronized void setThreadChoice(final ThreadChoice choice) {
+    // a click on the choice shown already chooses nothing
+    if (threadChoice != choice) {
+      threadChosenHere = true;
+    }
     threadChoice = choice;
     readyCallback.run();
   }
@@ -409,11 +418,20 @@ class ForumPosterEditorViewModel {
         .replaceFirst("^www\\.", "");
   }
 
+  /**
+   * Shows the game's forum settings, eg when the screen opens or another game is chosen. A save
+   * that has its thread keeps posting there; a game without one keeps the thread the player chose
+   * here, eg before choosing the map, instead of starting a new one.
+   */
   public synchronized void populateFromGameProperties(final GameProperties properties) {
-    setForumSelection((String) properties.get(IForumPoster.NAME));
-    topicId = properties.get(IForumPoster.TOPIC_ID, "");
-    // a save that has its thread keeps posting there
-    threadChoice = defaultThreadChoice();
+    final String gameThread = properties.get(IForumPoster.TOPIC_ID, "");
+    if (!gameThread.isBlank() || !threadChosenHere) {
+      // the thread chosen here keeps its forum too: a number means another thread elsewhere
+      setForumSelection((String) properties.get(IForumPoster.NAME));
+      topicId = gameThread;
+      threadChoice = defaultThreadChoice();
+      threadChosenHere = false;
+    }
     this.alsoPostAfterCombatMove = properties.get(IForumPoster.POST_AFTER_COMBAT, false);
     this.attachSaveGameToSummary = properties.get(IForumPoster.INCLUDE_SAVEGAME, true);
     Optional.ofNullable(view).ifPresent(v -> v.viewModelChanged(this));
@@ -459,8 +477,19 @@ class ForumPosterEditorViewModel {
   synchronized void useExistingThread(final String topicId) {
     threadChoice = ThreadChoice.EXISTING;
     this.topicId = topicId;
+    // eg the thread a start began: the game's, not the player's choice for the next map
+    threadChosenHere = false;
     Optional.ofNullable(view).ifPresent(v -> v.viewModelChanged(this));
     readyCallback.run();
+  }
+
+  /**
+   * The player chose the game's thread, eg by Choose game: it stays when the player then chooses
+   * the map, unlike the thread a start began, which belongs to the game that started.
+   */
+  synchronized void chooseExistingThread(final String topicId) {
+    useExistingThread(topicId);
+    threadChosenHere = true;
   }
 
   synchronized void viewForumButtonClicked() {

@@ -64,7 +64,7 @@ public final class BattlePanel extends ActionPanel {
 
   BattlePanel(final TripleAFrame frame) {
     super(frame);
-    opponent = new OpponentQuestion(frame.getGame(), frame);
+    opponent = new OpponentQuestion(frame.getGame());
     battleWindow = new JDialog(frame);
     battleWindow.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
     battleWindow.addWindowListener(

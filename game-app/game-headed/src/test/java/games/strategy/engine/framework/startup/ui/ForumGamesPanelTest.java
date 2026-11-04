@@ -14,7 +14,13 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
@@ -26,12 +32,18 @@ import games.strategy.engine.framework.startup.ui.panels.main.game.selector.Game
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.Player;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.SaveGame;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.ThreadPage;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.ThreadPost;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.GraphicsEnvironment;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,6 +52,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
 import javax.swing.JComboBox;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -49,6 +62,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.sonatype.goodies.prefs.memory.MemoryPreferences;
 
 final class ForumGamesPanelTest {
@@ -312,6 +326,57 @@ final class ForumGamesPanelTest {
         .as("Ann posted last in Pacific: the others are to move")
         .extracting(GameThread::title)
         .containsExactly("Pacific");
+  }
+
+  @DisplayName("Games moved to old games leave the player's games and show under Old games")
+  @Test
+  void oldGamesShowApart() throws Exception {
+    ClientSetting.tripleaForumSession.setValueAndFlush(SESSION.toCharArray());
+    forum.stubFor(
+        get(urlEqualTo("/api/user/ann/topics"))
+            .willReturn(
+                aResponse()
+                    .withBody(
+                        """
+                        {"topics": [
+                          {"tid": 102, "slug": "102/pacific", "title": "Pacific", "cid": 45,
+                           "lastposttime": 1700000900000},
+                          {"tid": 101, "slug": "101/global", "title": "Global 1940", "cid": 45,
+                           "lastposttime": 1700000000000}]}
+                        """)));
+    // eg finished, moved there before: topics count per forum
+    ClientSetting.oldForumGames.setValueAndFlush(tripleaForum().url() + "#102");
+    final ForumGamesPanel page = givenPage(ANN_SIGNS_IN);
+    SwingUtilities.invokeAndWait(page::refresh);
+    awaitGames(page, "Global 1940");
+    final List<String> mine = threadsOf(page).stream().map(GameThread::title).toList();
+
+    SwingUtilities.invokeAndWait(() -> buttonOf(page, "Old games").doClick());
+
+    assertThat(List.of(mine, threadsOf(page).stream().map(GameThread::title).toList()))
+        .as("the old game is out of the way, and there under Old games")
+        .containsExactly(List.of("Global 1940"), List.of("Pacific"));
+  }
+
+  @DisplayName("Join game takes the newest save game of the thread's newest posts")
+  @Test
+  void joinTakesNewestSave() {
+    final SaveGame older = new SaveGame(URI.create("http://forum/older.tsvg"), "older.tsvg", "");
+    final SaveGame newest = new SaveGame(URI.create("http://forum/newest.tsvg"), "newest.tsvg", "");
+    final ThreadPage page =
+        new ThreadPage(
+            List.of(givenPost(List.of(older)), givenPost(List.of(newest)), givenPost(List.of())),
+            1,
+            1,
+            false);
+
+    assertThat(ForumGamesPanel.newestSave(page))
+        .as("posts come oldest first; a chat after the turn has none")
+        .contains(newest);
+  }
+
+  private static ThreadPost givenPost(final List<SaveGame> saveGames) {
+    return new ThreadPost("Bob", "bob", "B", "#123456", Instant.EPOCH, "", "", saveGames);
   }
 
   @DisplayName("The search narrows the games to those whose title holds it")
@@ -683,10 +748,19 @@ final class ForumGamesPanelTest {
         .noneMatch(component -> isButton(component, "Join game"));
   }
 
-  @DisplayName("Join game writes the request to join into the answer box, to finish and send")
+  @DisplayName("Join game without a save game in the thread writes a request to join instead")
   @Test
   void joinGameWritesRequest() throws Exception {
     ClientSetting.tripleaForumSession.setValueAndFlush(SESSION.toCharArray());
+    forum.stubFor(
+        get(urlEqualTo("/api/topic/4441/qualifier?page=1&sort=oldest_to_newest"))
+            .willReturn(
+                aResponse()
+                    .withBody(
+                        """
+                        {"posts": [], "pagination": {"currentPage": 1, "pageCount": 1},
+                         "isFollowing": false}
+                        """)));
     final ForumGamesPanel page = givenPage(ANN_SIGNS_IN);
     SwingUtilities.invokeAndWait(page::refresh);
     awaitGames(page, "<html><b>Global 1940</b>");
@@ -699,13 +773,72 @@ final class ForumGamesPanelTest {
 
     SwingUtilities.invokeAndWait(() -> buttonOf(page, "Join game").doClick());
 
-    assertThat(composerOf(page).getText())
-        .as("nothing is sent until the player finishes and sends it")
-        .isEqualTo("I'd like to join this game. I can take over: ");
+    // the thread's newest posts are read first, in the background
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                assertThat(composerOf(page).getText())
+                    .as("no save to open: nothing is sent until the player finishes and sends it")
+                    .isEqualTo("I'd like to join this game. I can take over: "));
     assertThat(forum.findAll(anyRequestedFor(anyUrl())))
         .as("only reads: nothing written to the forum")
         .extracting(request -> request.getMethod().getName())
         .containsOnly("GET");
+  }
+
+  @DisplayName("Join game opens the newest save of the thread, where the player chooses nations")
+  @Test
+  void joinGameOpensNewestSave(@TempDir final Path saves) throws Exception {
+    ClientSetting.tripleaForumSession.setValueAndFlush(SESSION.toCharArray());
+    ClientSetting.saveGamesFolderPath.setValueAndFlush(saves);
+    forum.stubFor(
+        get(urlEqualTo("/api/topic/4441/qualifier?page=1&sort=oldest_to_newest"))
+            .willReturn(
+                aResponse()
+                    .withBody(
+                        """
+                        {"posts": [
+                          {"timestamp": 1700000000000, "user": {"username": "bob"},
+                           "content": "<p><a href=\\"/assets/uploads/files/1-old.tsvg\\">Save</a></p>"},
+                          {"timestamp": 1700000500000, "user": {"username": "eve"},
+                           "content": "<p><a href=\\"/assets/uploads/files/2-new.tsvg\\">Save</a></p>"}],
+                         "pagination": {"currentPage": 1, "pageCount": 1}}
+                        """)));
+    forum.stubFor(
+        get(urlEqualTo("/assets/uploads/files/2-new.tsvg"))
+            .willReturn(aResponse().withBody("save")));
+    assumeThat(GraphicsEnvironment.isHeadless()).as("the page shows while it opens").isFalse();
+    final HeadedServerSetupModel opening = spy(model);
+    doReturn(true).when(opening).continueSavedGame(any());
+    final ForumGamesPanel page =
+        new ForumGamesPanel(opening, List.of(tripleaForum()), ANN_SIGNS_IN);
+    final JFrame window = new JFrame();
+    try {
+      SwingUtilities.invokeAndWait(
+          () -> {
+            window.add(page);
+            window.pack();
+            window.setVisible(true);
+          });
+      SwingUtilities.invokeAndWait(page::refresh);
+      awaitGames(page, "<html><b>Global 1940</b>");
+      SwingUtilities.invokeAndWait(page::showBrowse);
+      awaitGames(page, "Qualifier Game 2");
+      SwingUtilities.invokeAndWait(() -> page.getThreads().setSelectedIndex(0));
+
+      SwingUtilities.invokeAndWait(() -> buttonOf(page, "Join game").doClick());
+
+      final ArgumentCaptor<Path> opened = ArgumentCaptor.forClass(Path.class);
+      verify(opening, timeout(10_000)).continueSavedGame(opened.capture());
+      assertThat(opened.getValue())
+          .as("the newest post's save, downloaded into the saved games folder")
+          .hasParent(saves.resolve("forum"))
+          .hasContent("save");
+      assertThat(composerOf(page).getText()).as("no request to write: the save opened").isEmpty();
+    } finally {
+      SwingUtilities.invokeAndWait(window::dispose);
+    }
   }
 
   @DisplayName("A save game opens to play on in the player's own games, to watch in the others'")

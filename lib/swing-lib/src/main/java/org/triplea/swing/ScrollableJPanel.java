@@ -50,9 +50,10 @@ public class ScrollableJPanel extends JPanel implements Scrollable {
     return true;
   }
 
+  /** About two lines of text; the system scrolls three of these per wheel notch. */
   @Override
   public int getScrollableUnitIncrement(
       final Rectangle visibleRect, final int orientation, final int direction) {
-    return 10;
+    return SwingComponents.SCROLL_UNIT_INCREMENT;
   }
 }

@@ -12,6 +12,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+import javax.swing.AbstractButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
@@ -20,7 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.sonatype.goodies.prefs.memory.MemoryPreferences;
 
-/** In game-headed although the panel is in game-core: the panel shows the logo from its assets. */
+/** In game-headed although the panel is in game-core: with the game client's look, as it shows. */
 final class GameSelectorPanelTest {
   private final GameSelectorModel model = new GameSelectorModel();
   private GameSelectorPanel panel;
@@ -72,6 +74,75 @@ final class GameSelectorPanelTest {
     assertThat(option.getValue())
         .as("the game was loaded with the model, eg by Continue in the main menu")
         .isEqualTo(loadedValue);
+  }
+
+  @DisplayName(
+      "Options set behind the editors, eg defaults loaded after the map, show once laid out")
+  @Test
+  void optionsShowValuesSetAfterTheGameLoaded() throws Exception {
+    final GameData game = TestMapGameData.REVISED.getGameData();
+    model.setGameData(game);
+    waitForEdt();
+    final IEditableProperty<?> option = givenOnOffOption(game);
+    final boolean setLater = !(Boolean) option.getValue();
+    // as "Make default" values are, after the map loaded; none are saved for the test map
+    option.validateAndSet(setLater);
+
+    panel.loadDefaultOptions();
+    waitForEdt();
+
+    assertThat(checkBoxOf(panel.getOptionsPanel(), option.getName()).isSelected())
+        .as("the screen shows what the game starts with")
+        .isEqualTo(setLater);
+  }
+
+  @DisplayName("A joined game's host sets its options; a bot's host is asked to change them")
+  @Test
+  void joinedGameTellsWhoSetsTheOptions() throws Exception {
+    model.setCanSelect(false);
+    model.clearDataButKeepGameInfo("World War II", "3");
+    model.setIsHostHeadlessBot(true);
+    waitForEdt();
+    final List<String> ofBot = textsIn(panel.getOptionsPanel());
+    model.setIsHostHeadlessBot(false);
+    waitForEdt();
+
+    assertThat(ofBot)
+        .as("the data of a joined game is at its host only")
+        .contains("The host sets the game's options.", "Change game options...");
+    assertThat(textsIn(panel.getOptionsPanel()))
+        .as("no button to a bot that is not there")
+        .doesNotContain("Change game options...");
+  }
+
+  private static JCheckBox checkBoxOf(final Container container, final String text) {
+    return componentsIn(container)
+        .filter(JCheckBox.class::isInstance)
+        .map(JCheckBox.class::cast)
+        .filter(box -> text.equals(box.getText()))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static List<String> textsIn(final Container container) {
+    return componentsIn(container)
+        .flatMap(
+            component ->
+                component instanceof JLabel label
+                    ? Stream.ofNullable(label.getText())
+                    : component instanceof AbstractButton button
+                        ? Stream.ofNullable(button.getText())
+                        : Stream.empty())
+        .toList();
+  }
+
+  private static Stream<Component> componentsIn(final Container container) {
+    return Arrays.stream(container.getComponents())
+        .flatMap(
+            component ->
+                component instanceof Container inner
+                    ? Stream.concat(Stream.of(component), componentsIn(inner))
+                    : Stream.of(component));
   }
 
   private static IEditableProperty<?> givenOnOffOption(final GameData game) {

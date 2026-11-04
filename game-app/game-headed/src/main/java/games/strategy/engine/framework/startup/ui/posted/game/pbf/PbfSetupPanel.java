@@ -236,6 +236,8 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
           IForumPoster.POST_AFTER_COMBAT, forumPosterEditorViewModel.isAlsoPostAfterCombatMove());
       properties.set(
           IForumPoster.INCLUDE_SAVEGAME, forumPosterEditorViewModel.isAttachSaveGameToSummary());
+      // the thread is the started game's now: the next new game here starts or takes its own
+      forumPosterEditorViewModel.useExistingThread(String.valueOf(topicId.get()));
     }
   }
 

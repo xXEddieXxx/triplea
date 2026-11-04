@@ -13,6 +13,10 @@ public class EndTurnPanel extends AbstractForumPosterPanel {
 
   @Override
   public void performDone() {
+    // Done's key while Send & done posts: the turn ends once posted
+    if (forumPosterComponent.isSending()) {
+      return;
+    }
     if (forumPosterComponent.canPostTurnSummary()
         && (forumPosterComponent.getHasPostedTurnSummary()
             || JOptionPane.YES_OPTION

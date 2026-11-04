@@ -3,6 +3,7 @@ package games.strategy.engine.posted.game.pbf;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.http.Header;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
@@ -24,6 +25,11 @@ import org.triplea.config.product.ProductVersionReader;
  * </pre>
  */
 final class NodeBbHttpClients {
+  private static final int CONNECT_TIMEOUT_MILLIS = 10_000;
+
+  /** Long enough for a save game going up to the forum, which answers once it has it all. */
+  private static final int READ_TIMEOUT_MILLIS = 60_000;
+
   private NodeBbHttpClients() {}
 
   static Builder builder() {
@@ -57,7 +63,18 @@ final class NodeBbHttpClients {
       if (sessionCookie != null) {
         headers.add(new BasicHeader("Cookie", "express.sid=" + sessionCookie));
       }
-      return HttpClients.custom().setDefaultHeaders(headers).disableCookieManagement().build();
+      return HttpClients.custom()
+          .setDefaultHeaders(headers)
+          // a forum that takes the connection and never answers must not hold a turn forever;
+          // a request with a config of its own keeps it
+          .setDefaultRequestConfig(
+              RequestConfig.custom()
+                  .setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
+                  .setConnectionRequestTimeout(CONNECT_TIMEOUT_MILLIS)
+                  .setSocketTimeout(READ_TIMEOUT_MILLIS)
+                  .build())
+          .disableCookieManagement()
+          .build();
     }
   }
 }

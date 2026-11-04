@@ -11,6 +11,7 @@ import games.strategy.engine.framework.GameShutdownRegistry;
 import games.strategy.engine.framework.HeadlessAutoSaveFileUtils;
 import games.strategy.engine.framework.startup.mc.ClientModel;
 import games.strategy.engine.framework.startup.mc.GameSelector;
+import games.strategy.triplea.Constants;
 import games.strategy.triplea.settings.ClientSetting;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -165,6 +166,15 @@ public class GameSelectorModel extends Observable implements GameSelector {
   /** Returns whether the round is known, ie a game or its listing is loaded. */
   boolean isGameRoundKnown() {
     return !UNKNOWN.equals(gameRound);
+  }
+
+  /** The map of the selected game, eg to find it installed; empty without a game or map. */
+  public String getMapName() {
+    return Optional.ofNullable(getGameData())
+        // the property itself: GameData.getMapName gives "null" for a game without one
+        .map(data -> data.getProperties().get(Constants.MAP_NAME))
+        .map(String::valueOf)
+        .orElse("");
   }
 
   public void setGameData(final GameData data) {

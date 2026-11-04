@@ -10,6 +10,7 @@ import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.lookandfeel.LookAndFeelSwingFrameListener;
 import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
+import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListing;
 import games.strategy.engine.framework.map.listing.MapListingFetcher;
 import games.strategy.engine.framework.ui.BackBar;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -54,9 +56,9 @@ import tools.map.making.ui.MapCreator;
 
 /// Window that allows for map downloads and removal: a `BackBar` with the title, then the tabs
 /// "Installed" (with a badge counting the maps that have updates) and "Get more maps". Each tab
-/// has the search and the view switch (list, list with pictures, tiles; kept in a setting) above
-/// its maps and the details of the selected map on the right. Downloads show their progress on
-/// their maps and go on when the window closes.
+/// has the search, the sort (kept in a setting), the tag filter and the view switch (list, list
+/// with pictures, tiles; kept in a setting) above its maps and the details of the selected map on
+/// the right. Downloads show their progress on their maps and go on when the window closes.
 @Slf4j
 public class DownloadMapsWindow extends JFrame {
   @Serial private static final long serialVersionUID = -1542210716764178580L;
@@ -74,6 +76,9 @@ public class DownloadMapsWindow extends JFrame {
   private final Document searchText = new PlainDocument();
   // the view switches of both tabs, which show the same view
   private final List<MapViewSwitch> viewSwitches = new ArrayList<>();
+  // the sort and tag buttons of both tabs, which show the same order and tags
+  private final List<MapSortSwitch> sortSwitches = new ArrayList<>();
+  private final List<MapTagFilter> tagFilters = new ArrayList<>();
 
   private final transient DownloadMapsWindowModel downloadMapsWindowModel;
   // the tab of each map, fixed while the window is open
@@ -109,8 +114,14 @@ public class DownloadMapsWindow extends JFrame {
     tabs = new TabMembership(getMapStore().getAll(), this::isInstalled);
     final Actions actions = new Actions(this::install, this::cancel, this::remove);
     final MapBrowserView view = ClientSetting.mapBrowserView.getValueOrThrow();
-    installedMaps = new MapList(this::getInstalledMaps, previews, actions, newToolbar(view), view);
-    mapsToGet = new MapList(this::getMapsToGet, previews, actions, newToolbar(view), view);
+    final MapSort sort = ClientSetting.mapBrowserSort.getValueOrThrow();
+    final List<Tag> tags = MapTagFilter.tagsOf(getMapStore().getAll());
+    installedMaps =
+        new MapList(
+            this::getInstalledMaps, previews, actions, newToolbar(view, sort, tags), view, sort);
+    mapsToGet =
+        new MapList(
+            this::getMapsToGet, previews, actions, newToolbar(view, sort, tags), view, sort);
     listenToSearch();
     DownloadCoordinator.instance.addDownloadListener(rowProgress);
     // downloads of an earlier maps window go on; their maps show that they download
@@ -238,15 +249,28 @@ public class DownloadMapsWindow extends JFrame {
     };
   }
 
-  /** The search filling the width above the maps of a tab, the view switch on its right. */
-  private JPanel newToolbar(final MapBrowserView view) {
+  /**
+   * The search filling the width above the maps of a tab, the sort, tag and view buttons on its
+   * right.
+   */
+  private JPanel newToolbar(final MapBrowserView view, final MapSort sort, final List<Tag> tags) {
+    final MapSortSwitch sortSwitch = new MapSortSwitch(sort, this::sortBy);
+    sortSwitches.add(sortSwitch);
+    final MapTagFilter tagFilter = new MapTagFilter(tags, this::filterByTags);
+    tagFilters.add(tagFilter);
     final MapViewSwitch viewSwitch = new MapViewSwitch(view, this::showView);
     viewSwitches.add(viewSwitch);
     return new JPanelBuilder()
         .border(BorderFactory.createEmptyBorder(12, 20, 8, 20))
         .borderLayout()
         .addCenter(newSearchField())
-        .addEast(viewSwitch)
+        .addEast(
+            new JPanelBuilder()
+                .boxLayoutHorizontal()
+                .add(sortSwitch)
+                .add(tagFilter)
+                .add(viewSwitch)
+                .build())
         .build();
   }
 
@@ -260,6 +284,21 @@ public class DownloadMapsWindow extends JFrame {
     searchField.setPreferredSize(new Dimension(0, SEARCH_HEIGHT));
     SwingUtilities.invokeLater(searchField::requestFocusInWindow);
     return searchField;
+  }
+
+  /** Shows the maps in the order in both tabs and keeps it for the next time. */
+  private void sortBy(final MapSort sort) {
+    ClientSetting.mapBrowserSort.setValueAndFlush(sort);
+    sortSwitches.forEach(sortSwitch -> sortSwitch.showChosen(sort));
+    installedMaps.sortBy(sort);
+    mapsToGet.sortBy(sort);
+  }
+
+  /** Shows only the maps with the tags in both tabs; for this window only. */
+  private void filterByTags(final Set<Tag> tags) {
+    tagFilters.forEach(tagFilter -> tagFilter.showChecked(tags));
+    installedMaps.filterByTags(tags);
+    mapsToGet.filterByTags(tags);
   }
 
   /** Shows the maps in the view in both tabs and keeps it for the next time. */

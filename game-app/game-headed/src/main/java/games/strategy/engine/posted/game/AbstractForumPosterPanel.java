@@ -23,7 +23,8 @@ abstract class AbstractForumPosterPanel extends ActionPanel {
 
   AbstractForumPosterPanel(final GameData data, final MapPanel map) {
     super(data, map);
-    forumPosterComponent = new ForumPosterComponent(data, this::performDone, getTitle());
+    // Send & done and Done without sending say what they do: no question after them
+    forumPosterComponent = new ForumPosterComponent(data, this::release, getTitle());
   }
 
   private int getRound() {
@@ -64,6 +65,11 @@ abstract class AbstractForumPosterPanel extends ActionPanel {
 
     final boolean hasPosted =
         ((IAbstractForumPosterDelegate) playerBridge.getRemoteDelegate()).getHasPostedTurnSummary();
+    if (hasPosted) {
+      // posted when the step began: the save posted with the turn was saved here, and the player
+      // who loads it, eg the next nation's, goes on at once instead of finishing it for the poster
+      return;
+    }
 
     SwingUtilities.invokeLater(
         () -> {
@@ -74,7 +80,7 @@ abstract class AbstractForumPosterPanel extends ActionPanel {
                   pbemMessagePoster,
                   (IAbstractForumPosterDelegate) playerBridge.getRemoteDelegate(),
                   tripleAFrame,
-                  hasPosted,
+                  tripleAFrame.getGame(),
                   includeDetailsAndSummary()));
           validate();
         });

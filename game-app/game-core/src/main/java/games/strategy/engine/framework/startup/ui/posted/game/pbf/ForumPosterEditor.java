@@ -5,11 +5,13 @@ import games.strategy.engine.framework.startup.ui.posted.game.HelpTexts;
 import games.strategy.engine.framework.startup.ui.posted.game.pbf.ForumPosterEditorViewModel.ThreadChoice;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.Player;
+import games.strategy.engine.posted.game.pbf.OldForumGames;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.GridBagLayout;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.annotation.Nullable;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -71,11 +73,11 @@ class ForumPosterEditor extends JPanel implements ViewModelListener<ForumPosterE
   private final JTextField titleField = new JTextField();
   private final JLabel topicIdLabel = new JLabel("Thread address or number");
   private final JTextField topicIdField = new JTextField();
-  private final JButton chooseGame = new JButton("Choose game...");
+  private final JButton chooseGameButton = new JButton("Choose game...");
   private final JPanel threadActions =
       new JPanelBuilder()
           .boxLayoutHorizontal()
-          .add(chooseGame)
+          .add(chooseGameButton)
           .addHorizontalStrut(4)
           .add(viewPosts)
           .build();
@@ -174,7 +176,7 @@ class ForumPosterEditor extends JPanel implements ViewModelListener<ForumPosterE
         "Paste the thread's address from your browser, eg"
             + " https://forums.triplea-game.org/topic/123/my-game, or type its number");
     viewPosts.addActionListener(e -> viewModel.viewForumButtonClicked());
-    chooseGame.addActionListener(e -> chooseGame());
+    chooseGameButton.addActionListener(e -> chooseGame());
     addRow(topicIdLabel, topicIdField, threadActions);
 
     new DocumentListenerBuilder(
@@ -252,10 +254,23 @@ class ForumPosterEditor extends JPanel implements ViewModelListener<ForumPosterE
 
   /** Lists the forum's current games; the one the player picks becomes the game's thread. */
   private void chooseGame() {
+    final Set<String> old = OldForumGames.keys();
+    final String forumUrl = viewModel.getForumUrl();
     viewModel
         .newSessionClient()
-        .flatMap(forum -> GameThreadChooser.choose(this, forum))
-        .ifPresent(thread -> viewModel.useExistingThread(String.valueOf(thread.topicId())));
+        .flatMap(
+            forum ->
+                GameThreadChooser.choose(
+                    this,
+                    forum,
+                    // as on the Play by forum page: finished games the player moved away stay away
+                    thread -> old.contains(OldForumGames.keyOf(forumUrl, thread.topicId())),
+                    // as when the screen asked: signed out, so no turn goes out with the session
+                    () -> {
+                      viewModel.sessionRanOut();
+                      refresh();
+                    }))
+        .ifPresent(thread -> viewModel.chooseExistingThread(String.valueOf(thread.topicId())));
   }
 
   @Override
@@ -298,8 +313,8 @@ class ForumPosterEditor extends JPanel implements ViewModelListener<ForumPosterE
     topicIdField.setVisible(thread && !newOne);
     threadActions.setVisible(thread && !newOne);
     // the forum shows its games only to a signed-in player; the state is known, so no slow read
-    chooseGame.setEnabled(viewModel.isSignedIn());
-    chooseGame.setToolTipText(
+    chooseGameButton.setEnabled(viewModel.isSignedIn());
+    chooseGameButton.setToolTipText(
         viewModel.isSignedIn()
             ? "Your games and the forum's newest games: take one instead of pasting its address"
             : "Sign in on Multiplayer > Play by forum to choose from your games");

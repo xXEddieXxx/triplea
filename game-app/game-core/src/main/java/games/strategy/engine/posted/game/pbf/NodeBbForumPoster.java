@@ -105,6 +105,18 @@ public class NodeBbForumPoster {
     }
   }
 
+  /** Whether the forum's answer to a post says it shows the post once a moderator approved it. */
+  public static boolean isHeldBack(final String answer) {
+    return HELD_BACK.equals(answer);
+  }
+
+  /** The address of the forum of the name, eg of a game's forum; the TripleA forum by default. */
+  public static String forumUrlOf(final String name) {
+    return AXIS_AND_ALLIES_ORG_DISPLAY_NAME.equals(name)
+        ? UrlConstants.AXIS_AND_ALLIES_FORUM
+        : UrlConstants.TRIPLEA_FORUM;
+  }
+
   public static ImmutableSet<String> availablePosters() {
     return ImmutableSet.of(
         NodeBbForumPoster.TRIPLEA_FORUM_DISPLAY_NAME,

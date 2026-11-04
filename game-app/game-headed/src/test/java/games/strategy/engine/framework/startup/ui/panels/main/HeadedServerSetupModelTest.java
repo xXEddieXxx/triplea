@@ -15,6 +15,7 @@ import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Window;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -114,6 +115,64 @@ final class HeadedServerSetupModelTest {
     assertThat(model.getPanel())
         .as("the error dialog explains the failure; no setup screen opens behind it")
         .isNull();
+  }
+
+  @DisplayName("A dropped save of a game on this computer starts; a forum game first asks nations")
+  @Test
+  void droppedSaveStartsLocalGame() {
+    final GameData forumGame = TestMapGameData.REVISED.getGameData();
+    forumGame.getProperties().set(IForumPoster.NAME, "Our forum");
+    final HeadedServerSetupModel local = givenModelLoading(TestMapGameData.REVISED.getGameData());
+    local.showSelectType();
+    final HeadedServerSetupModel forum = givenModelLoading(forumGame);
+    forum.showSelectType();
+
+    final boolean localStarts = local.openDroppedSave(Path.of("my game.tsvg"));
+    final boolean forumStarts = forum.openDroppedSave(Path.of("forum game.tsvg"));
+
+    assertThat(List.of(localStarts, forumStarts))
+        .as("the forum game stays on its screen, where the player chooses the nations to play")
+        .containsExactly(true, false);
+    assertThat(forum.getPanel()).isInstanceOf(PbfSetupPanel.class);
+  }
+
+  @DisplayName("A forum save dropped on the local screen goes to its own screen, not started")
+  @Test
+  void droppedForumSaveOnLocalScreenKeepsItsSettings() {
+    final GameData forumGame = TestMapGameData.REVISED.getGameData();
+    forumGame.getProperties().set(IForumPoster.NAME, "Our forum");
+    final HeadedServerSetupModel model = givenModelLoading(forumGame);
+    model.showLocal();
+
+    final boolean starts = model.openDroppedSave(Path.of("forum game.tsvg"));
+
+    assertThat(starts).as("the local screen would clear the forum settings at the start").isFalse();
+    assertThat(model.getPanel()).isInstanceOf(PbfSetupPanel.class);
+  }
+
+  @DisplayName("A drop on a joined game loads nothing: its host chooses the game")
+  @Test
+  void dropOnJoinedGameLoadsNothing() {
+    final GameData save = TestMapGameData.REVISED.getGameData();
+    final HeadedServerSetupModel model = givenModelLoading(save);
+    gameSelectorModel.setCanSelect(false);
+
+    final boolean starts = model.openDroppedSave(Path.of("my game.tsvg"));
+
+    assertThat(starts).as("as Load game is off there").isFalse();
+    assertThat(gameSelectorModel.getGameData()).as("nothing loaded").isNotSameAs(save);
+  }
+
+  @DisplayName("A dropped save that does not load starts nothing")
+  @Test
+  void droppedBrokenSaveStartsNothing() {
+    final HeadedServerSetupModel model =
+        new HeadedServerSetupModel(gameSelectorModel, save -> false);
+    model.showLocal();
+
+    assertThat(model.openDroppedSave(Path.of("broken.tsvg")))
+        .as("the game selected on the screen stays, nothing starts")
+        .isFalse();
   }
 
   @DisplayName("A save to watch that does not load opens nothing")

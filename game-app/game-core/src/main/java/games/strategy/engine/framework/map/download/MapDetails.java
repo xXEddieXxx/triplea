@@ -3,6 +3,7 @@ package games.strategy.engine.framework.map.download;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.MapRating.Review;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
+import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -13,8 +14,10 @@ import java.awt.event.ComponentEvent;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -36,9 +39,9 @@ import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
 
 /**
  * The column right of a map list with the selected map: a large preview that slides up out of the
- * way by a click on its lower border, its name and creator, its versions, size, downloads and
- * status and its buttons; below them, scrolling together, its full description and its ratings and
- * reviews ({@link MapRating}, a mockup).
+ * way by a click on its lower border, its name and creator, its versions, size, downloads, status
+ * and tags and its buttons; below them, scrolling together, its full description and its ratings
+ * and reviews ({@link MapRating}, a mockup).
  */
 final class MapDetails extends JPanel {
   @Serial private static final long serialVersionUID = 6127433920184626413L;
@@ -91,7 +94,6 @@ final class MapDetails extends JPanel {
     bodyScroll.setOpaque(false);
     bodyScroll.getViewport().setOpaque(false);
     bodyScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    bodyScroll.getVerticalScrollBar().setUnitIncrement(24);
     // added once, so a refresh never takes the name or comment being typed out of the window
     add(bodyScroll, BorderLayout.CENTER);
     // the preview fills the width of the details
@@ -183,15 +185,16 @@ final class MapDetails extends JPanel {
     final List<Fact> facts = facts(map);
     for (int row = 0; row < facts.size(); row++) {
       final Fact fact = facts.get(row);
+      // tags come from the server, so the facts show their text as written
+      final JLabel label = MapRow.newPlainLabel(fact.label());
+      label.setForeground(LookAndFeel.getSecondaryTextColor());
       grid.add(
-          new JLabelBuilder(fact.label())
-              .foregroundColor(LookAndFeel.getSecondaryTextColor())
-              .build(),
+          label,
           new GridBagConstraintsBuilder(0, row)
               .anchor(GridBagConstraintsAnchor.WEST)
               .insets(2, 0, 2, 16)
               .build());
-      final JLabel value = row == 0 ? status : new JLabel(fact.value());
+      final JLabel value = row == 0 ? status : MapRow.newPlainLabel(fact.value());
       grid.add(
           value,
           new GridBagConstraintsBuilder(1, row)
@@ -205,8 +208,8 @@ final class MapDetails extends JPanel {
 
   /**
    * The facts about the map, the status first, eg "Status: Update available", "Installed version: 3
-   * Mar 2024", "Newest version: 9 Jun 2025", "Size: 38 MB" and "Downloads: 12,431" (an example);
-   * facts the map lacks are left out.
+   * Mar 2024", "Newest version: 9 Jun 2025", "Size: 38 MB", "Downloads: 12,431" (an example) and
+   * the tags, eg "Category: WW2"; facts the map lacks are left out.
    */
   static List<Fact> facts(final ManagedMap map) {
     final List<Fact> facts = new ArrayList<>();
@@ -219,6 +222,14 @@ final class MapDetails extends JPanel {
         .ifPresent(date -> facts.add(new Fact("Newest version", date)));
     MapRow.sizeText(map.getMapDownloadItem()).ifPresent(size -> facts.add(new Fact("Size", size)));
     facts.add(new Fact("Downloads", MapRating.downloadsText(map.getMapName())));
+    // several values of a tag share its line, eg "Category: WW2, Pacific"
+    Tag.of(map.getMapDownloadItem()).stream()
+        .collect(
+            Collectors.groupingBy(
+                Tag::name,
+                LinkedHashMap::new,
+                Collectors.mapping(Tag::value, Collectors.joining(", "))))
+        .forEach((name, values) -> facts.add(new Fact(name, values)));
     return facts;
   }
 

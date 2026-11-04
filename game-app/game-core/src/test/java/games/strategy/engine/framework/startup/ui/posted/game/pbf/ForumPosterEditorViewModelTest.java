@@ -73,6 +73,59 @@ class ForumPosterEditorViewModelTest extends AbstractClientSettingTestCase {
   }
 
   @Test
+  @DisplayName("A thread chosen before the game is chosen stays; a save's own thread wins")
+  void chosenThreadSurvivesChoosingTheGame() {
+    final ForumPosterEditorViewModel viewModel =
+        new ForumPosterEditorViewModel(() -> {}, new GameProperties(gameData));
+    viewModel.setForumSelection(NodeBbForumPoster.AXIS_AND_ALLIES_ORG_DISPLAY_NAME);
+    viewModel.setThreadChoice(ThreadChoice.EXISTING);
+    viewModel.setTopicId("123");
+
+    // eg the player chose the map after the thread: a new game, without a thread of its own
+    viewModel.populateFromGameProperties(new GameProperties(gameData));
+    final String afterNewGame = viewModel.getForumSelection() + " " + viewModel.getTopicId();
+    final GameProperties save = new GameProperties(gameData);
+    save.set(IForumPoster.TOPIC_ID, "456");
+    viewModel.populateFromGameProperties(save);
+
+    assertThat(List.of(afterNewGame, viewModel.getTopicId()))
+        .as("the new game posts to the chosen thread of its forum, a save keeps posting to its own")
+        .containsExactly(NodeBbForumPoster.AXIS_AND_ALLIES_ORG_DISPLAY_NAME + " 123", "456");
+  }
+
+  @DisplayName("The thread a start began belongs to that game, not to the next map chosen")
+  @Test
+  void startedThreadStaysWithItsGame() {
+    final ForumPosterEditorViewModel viewModel =
+        new ForumPosterEditorViewModel(() -> {}, new GameProperties(gameData));
+    viewModel.setThreadChoice(ThreadChoice.EXISTING);
+    viewModel.setThreadChoice(ThreadChoice.NEW);
+    // the start began thread 789, eg then its map's download was cancelled
+    viewModel.useExistingThread("789");
+
+    viewModel.populateFromGameProperties(new GameProperties(gameData));
+
+    assertThat(viewModel.getTopicId()).as("the next game starts its own thread").isEmpty();
+  }
+
+  @DisplayName("A click on the thread choice shown already keeps a save's thread to the save")
+  @Test
+  void clickOnShownChoiceChoosesNothing() {
+    final GameProperties save = new GameProperties(gameData);
+    save.set(IForumPoster.TOPIC_ID, "456");
+    final ForumPosterEditorViewModel viewModel = new ForumPosterEditorViewModel(() -> {}, save);
+    // a save posts to its thread: Existing thread is chosen
+    viewModel.setThreadChoice(ThreadChoice.EXISTING);
+
+    // the player picks a new game after looking at the save
+    viewModel.populateFromGameProperties(new GameProperties(gameData));
+
+    assertThat(viewModel.getTopicId())
+        .as("the new game gets no thread of another game the player never chose")
+        .isEmpty();
+  }
+
+  @Test
   @DisplayName("Ensure we can use partial GameProperties to set initial values")
   void verifyInitializeWithPartialGameProperties() {
     final GameProperties gameProperties = new GameProperties(gameData);

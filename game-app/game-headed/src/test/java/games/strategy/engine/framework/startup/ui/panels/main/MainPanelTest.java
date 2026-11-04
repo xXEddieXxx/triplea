@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
 import games.strategy.triplea.settings.ClientSetting;
+import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.Arrays;
@@ -25,15 +26,15 @@ final class MainPanelTest {
   private final String backToMainMenu = "Back to Main menu";
   private final String quit = text("startup.MainPanel.btn.Quit.Lbl");
   // the game selection's button to choose another game
-  private final String changeGame = "Change Game...";
+  private final String changeGame = "Change map...";
 
+  private final GameSelectorModel gameSelectorModel = new GameSelectorModel();
   private HeadedServerSetupModel model;
   private MainPanel mainPanel;
 
   @BeforeEach
   void givenMainPanel() {
     ClientSetting.setPreferences(new MemoryPreferences());
-    final GameSelectorModel gameSelectorModel = new GameSelectorModel();
     model = new HeadedServerSetupModel(gameSelectorModel);
     mainPanel = new MainPanelBuilder(() -> {}).buildMainPanel(model, gameSelectorModel);
   }
@@ -78,6 +79,25 @@ final class MainPanelTest {
     assertThat(buttonTitles(mainPanel))
         .as("the local game screen needs the game selection again")
         .contains(quit, startGame, changeGame);
+  }
+
+  @DisplayName("A setup screen sets the game's options below the players; the main menu has none")
+  @Test
+  void setupScreenShowsGameOptions() throws Exception {
+    gameSelectorModel.setGameData(TestMapGameData.REVISED.getGameData());
+    model.showLocal();
+    // the game's part updates on the Swing thread
+    SwingUtilities.invokeAndWait(() -> {});
+    final List<String> onSetupScreen = buttonTitles(mainPanel);
+
+    model.showSelectType();
+
+    assertThat(onSetupScreen)
+        .as("the options right on the screen, the map's card with loading a game beside")
+        .contains("Reset", "Make default", "Load game...");
+    assertThat(buttonTitles(mainPanel))
+        .as("the main menu chooses how to play first")
+        .doesNotContain("Reset", "Load game...");
   }
 
   @DisplayName("A setup screen has the link back at the top, Quit and Start Game in the footer")

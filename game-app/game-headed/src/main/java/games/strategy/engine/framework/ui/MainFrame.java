@@ -73,6 +73,16 @@ public class MainFrame {
           }
         });
     MainWindowPages.setMainWindow(pages);
+    mainJFrame.setTransferHandler(new SaveGameDrop(this::startDroppedSave));
+  }
+
+  /** A save dropped onto the window: it opens, and a game of this computer starts at once. */
+  private void startDroppedSave(final Path save) {
+    // a page like Settings would hide the screen the save opens on
+    pages.leavePage();
+    if (headedServerSetupModel.openDroppedSave(save)) {
+      MainPanelBuilder.getMainPanelLaunchAction(headedServerSetupModel).accept(mainPanel);
+    }
   }
 
   /** Runs the quit actions, eg leaving the lobby, then closes the window as its frame would. */

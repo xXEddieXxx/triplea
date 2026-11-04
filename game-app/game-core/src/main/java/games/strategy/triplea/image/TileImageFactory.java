@@ -28,7 +28,7 @@ public final class TileImageFactory {
           .getDefaultScreenDevice()
           .getDefaultConfiguration();
   private final ResourceLoader resourceLoader;
-  // the map's blend; it never fails, a map's odd values blend normally
+  // the map's blend; it never fails, a map's odd values fall back to a blend that shows
   private final BlendComposite blend;
 
   public TileImageFactory(final ResourceLoader resourceLoader, final MapData mapData) {

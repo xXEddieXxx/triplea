@@ -25,27 +25,36 @@ final class BlendCompositeTest {
         .containsExactly(BlendingMode.MULTIPLY, 0.3f);
   }
 
-  @DisplayName("A mode or strength the map cannot mean blends normally at half strength")
+  @DisplayName("A mode the map cannot mean blends normally at half strength")
   @Test
-  void invalidBlendFallsBack() {
-    final MapData unreadableAlpha = givenMapData("normal", 0);
-    when(unreadableAlpha.getMapBlendAlpha()).thenThrow(new NumberFormatException("0,5"));
+  void invalidModeBlendsNormally() {
+    final MapData mapData = givenMapData("screen", 1.0f);
+
+    final BlendComposite blend = BlendComposite.newForMap(mapData);
+
+    assertThat(blend)
+        .as("the strength was meant for the other mode: at full strength the relief would hide")
+        .extracting(BlendComposite::getMode, BlendComposite::getAlpha)
+        .containsExactly(BlendingMode.NORMAL, 0.5f);
+  }
+
+  @DisplayName("A strength the map cannot mean blends at half strength, in the map's mode")
+  @Test
+  void invalidStrengthKeepsMode() {
+    final MapData unreadable = givenMapData("overlay", 0);
+    when(unreadable.getMapBlendAlpha()).thenThrow(new NumberFormatException("0,5"));
     final List<MapData> maps =
-        List.of(
-            givenMapData("screen", 0.3f),
-            unreadableAlpha,
-            givenMapData("overlay", 1.5f),
-            givenMapData("overlay", Float.NaN));
+        List.of(unreadable, givenMapData("overlay", 1.5f), givenMapData("overlay", Float.NaN));
 
     final List<BlendComposite> blends = maps.stream().map(BlendComposite::newForMap).toList();
 
     assertThat(blends)
-        .as("unknown mode, unreadable, too strong and NaN: the relief still shows")
+        .as("unreadable, too strong and NaN: the map's overlay at half strength")
         .allSatisfy(
             blend ->
                 assertThat(blend)
                     .extracting(BlendComposite::getMode, BlendComposite::getAlpha)
-                    .containsExactly(BlendingMode.NORMAL, 0.5f));
+                    .containsExactly(BlendingMode.OVERLAY, 0.5f));
   }
 
   private static MapData givenMapData(final String blendMode, final float blendAlpha) {

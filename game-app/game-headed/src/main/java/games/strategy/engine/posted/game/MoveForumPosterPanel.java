@@ -12,7 +12,10 @@ public class MoveForumPosterPanel extends AbstractForumPosterPanel {
 
   @Override
   public void performDone() {
-    release();
+    // Done's key while Send & done posts: the step ends once posted
+    if (!forumPosterComponent.isSending()) {
+      release();
+    }
   }
 
   @Override

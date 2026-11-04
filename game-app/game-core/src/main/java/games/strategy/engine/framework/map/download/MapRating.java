@@ -186,7 +186,6 @@ final class MapRating extends JPanel {
   }
 
   /** An average from 3.0 to 4.9 that stays the same for the map, until real ratings exist. */
-  @VisibleForTesting
   static double exampleAverage(final String mapName) {
     return 3.0 + Math.floorMod(mapName.hashCode(), 20) / 10.0;
   }
@@ -404,7 +403,6 @@ final class MapRating extends JPanel {
   }
 
   /** Downloads that stay the same for the map, 40 to 439 per rating, until real numbers exist. */
-  @VisibleForTesting
   static int exampleDownloads(final String mapName) {
     return exampleCount(mapName) * (40 + Math.floorMod(mapName.hashCode() / 1200, 400));
   }

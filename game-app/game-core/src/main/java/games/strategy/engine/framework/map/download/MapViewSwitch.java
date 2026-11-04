@@ -30,7 +30,7 @@ final class MapViewSwitch extends JPanel {
 
   private static final int ICON_SIZE = 16;
 
-  private final JButton button = new JButton();
+  private final JButton button;
   private final Map<MapBrowserView, JRadioButtonMenuItem> items =
       new EnumMap<>(MapBrowserView.class);
 
@@ -54,17 +54,26 @@ final class MapViewSwitch extends JPanel {
       menu.add(item);
     }
 
-    button.putClientProperty(
-        FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
-    // a click opens the menu without a focus ring left on the button; Tab still reaches it
-    button.setRequestFocusEnabled(false);
+    button = newMenuButton(menu);
     // the small arrow says that a menu opens
     button.setText("▾");
     button.setIconTextGap(4);
     button.getAccessibleContext().setAccessibleName("View");
-    button.addActionListener(e -> menu.show(button, 0, button.getHeight()));
     add(button, BorderLayout.CENTER);
     showChosen(view);
+  }
+
+  /**
+   * A button of the bar above the maps that opens the menu below it, without a frame until the
+   * mouse is over it. A click leaves no focus ring on it; Tab still reaches it.
+   */
+  static JButton newMenuButton(final JPopupMenu menu) {
+    final JButton button = new JButton();
+    button.putClientProperty(
+        FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+    button.setRequestFocusEnabled(false);
+    button.addActionListener(e -> menu.show(button, 0, button.getHeight()));
+    return button;
   }
 
   /** Shows the view as the chosen one, eg after the switch of the other tab changed it. */

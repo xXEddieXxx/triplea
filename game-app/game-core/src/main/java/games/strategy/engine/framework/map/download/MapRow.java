@@ -1,8 +1,10 @@
 package games.strategy.engine.framework.map.download;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapPreviews.Size;
+import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMap;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -55,8 +57,8 @@ import org.triplea.swing.jpanel.GridBagConstraintsFill;
  * One map in a list of the maps window, in the view the player chose: a compact row (name, creator,
  * status, a small button), a row with its preview, a line about it and its buttons, or a tile with
  * a large preview on top. Every view shows the map's rating and downloads (examples, see {@link
- * MapRating}). A click selects it, which shows the map in the details; ctrl-click and shift-click
- * select several maps.
+ * MapRating}), the views with pictures also its tags. A click selects it, which shows the map in
+ * the details; ctrl-click and shift-click select several maps.
  */
 final class MapRow extends JPanel {
   @Serial private static final long serialVersionUID = 4466510936120385542L;
@@ -236,8 +238,8 @@ final class MapRow extends JPanel {
   }
 
   /**
-   * The preview on the left, then name, a line about the map, status and the rating and downloads,
-   * then the buttons.
+   * The preview on the left, then name, a line about the map, status and the rating, downloads and
+   * tags, then the buttons.
    */
   private void layOutWithPicture(final Actions actions) {
     setLayout(new BorderLayout(20, 0));
@@ -254,7 +256,7 @@ final class MapRow extends JPanel {
       texts.add(aboutLabel);
     }
     texts.add(status);
-    texts.add(MapRating.newSummary(map.getMapName()));
+    texts.add(newSummaryWithTags(map));
 
     final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
     buttons.setOpaque(false);
@@ -266,8 +268,50 @@ final class MapRow extends JPanel {
   }
 
   /**
-   * A card: the large preview on top, below it name, creator, status, rating and downloads and a
-   * small button.
+   * The rating and downloads, then the map's tags as small chips, eg "WW2"; chips that do not fit
+   * the line are left out.
+   */
+  private static JPanel newSummaryWithTags(final ManagedMap map) {
+    // one row: a flow layout puts what does not fit into a second row, outside of the line
+    final JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    line.setOpaque(false);
+    line.setAlignmentX(LEFT_ALIGNMENT);
+    line.add(MapRating.newSummary(map.getMapName()));
+    Tag.of(map.getMapDownloadItem())
+        .forEach(
+            tag -> {
+              line.add(Box.createHorizontalStrut(8));
+              line.add(newTagChip(tag));
+            });
+    return line;
+  }
+
+  /** A tag as a small pill in the theme's colors (FlatLaf only; else a plain label). */
+  private static JLabel newTagChip(final Tag tag) {
+    final JLabel chip = newPlainLabel(tag.value());
+    LookAndFeel.setSmallStyle(chip);
+    // the text color, faded, is a quiet fill in light and dark themes
+    chip.putClientProperty(
+        FlatClientProperties.STYLE, "arc: 999; background: fade($Label.foreground, 10%)");
+    chip.setBorder(BorderFactory.createEmptyBorder(1, 7, 1, 7));
+    chip.getAccessibleContext().setAccessibleName(tag.name() + ": " + tag.value());
+    return chip;
+  }
+
+  /**
+   * A label with the text as written, eg the server's: "&lt;html&gt;..." shows as it is. Swing
+   * reads the switch when the text is set, so it comes first.
+   */
+  static JLabel newPlainLabel(final String text) {
+    final JLabel label = new JLabel();
+    label.putClientProperty("html.disable", Boolean.TRUE);
+    label.setText(text);
+    return label;
+  }
+
+  /**
+   * A card: the large preview on top, below it name, creator, status, rating, downloads and tags
+   * and a small button.
    */
   private void layOutTile(final Actions actions) {
     setLayout(new BorderLayout(0, 8));
@@ -283,7 +327,7 @@ final class MapRow extends JPanel {
             .map(MapRow::newCreatorLabel)
             .orElseGet(() -> new JLabel(" ")));
     texts.add(status);
-    texts.add(MapRating.newSummary(map.getMapName()));
+    texts.add(newSummaryWithTags(map));
     final JPanel buttons = newSmallButtons(map, actions);
     ((FlowLayout) buttons.getLayout()).setAlignment(FlowLayout.LEFT);
 

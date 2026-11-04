@@ -18,6 +18,7 @@ import javax.swing.JLabel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
+import org.triplea.http.client.lobby.maps.listing.MapTag;
 import org.triplea.map.description.file.MapDescriptionYaml;
 import org.triplea.map.description.file.MapDescriptionYaml.MapGame;
 
@@ -198,12 +199,57 @@ final class MapRowTest {
                     .contains(summary));
   }
 
+  @DisplayName("The views with pictures show the tags as written, the compact list none")
+  @Test
+  void tagsInViewsWithPictures() {
+    final String tag = "<html><b>WW2";
+    final ManagedMap map =
+        new ManagedMap(
+            MapDownloadItem.builder()
+                .downloadUrl("")
+                .previewImageUrl("")
+                .mapName("World War II Global")
+                .description("description")
+                .lastCommitDateEpochMilli(NEWER.toEpochMilli())
+                .downloadSizeInBytes(1024L)
+                .mapTags(
+                    List.of(MapTag.builder().name("Category").value(tag).displayOrder(1).build()))
+                .build());
+
+    assertThat(labelsWithText(givenRow(map, MapBrowserView.LIST), tag))
+        .as("the compact list has no room for tags")
+        .isEmpty();
+    assertThat(Stream.of(MapBrowserView.LIST_WITH_PICTURES, MapBrowserView.TILES))
+        .allSatisfy(
+            view ->
+                assertThat(labelsWithText(givenRow(map, view), tag))
+                    .singleElement()
+                    .satisfies(
+                        chip ->
+                            assertThat(chip.getClientProperty("html.disable"))
+                                .as("the server's text is shown as written, not as HTML")
+                                .isEqualTo(Boolean.TRUE)));
+  }
+
+  private static MapRow givenRow(final ManagedMap map, final MapBrowserView view) {
+    return new MapRow(
+        map, view, Caches.newCaches(), NO_ACTIONS, new Listener(row -> {}, row -> {}, row -> {}));
+  }
+
+  private static List<JLabel> labelsWithText(final Component component, final String text) {
+    return labels(component).stream().filter(label -> text.equals(label.getText())).toList();
+  }
+
   private static List<String> labelTexts(final Component component) {
-    final Stream<String> own =
-        component instanceof JLabel label ? Stream.of(label.getText()) : Stream.empty();
-    final Stream<String> children =
+    return labels(component).stream().map(JLabel::getText).toList();
+  }
+
+  private static List<JLabel> labels(final Component component) {
+    final Stream<JLabel> own =
+        component instanceof JLabel label ? Stream.of(label) : Stream.empty();
+    final Stream<JLabel> children =
         component instanceof Container container
-            ? Arrays.stream(container.getComponents()).flatMap(c -> labelTexts(c).stream())
+            ? Arrays.stream(container.getComponents()).flatMap(c -> labels(c).stream())
             : Stream.empty();
     return Stream.concat(own, children).toList();
   }

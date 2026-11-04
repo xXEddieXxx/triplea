@@ -16,18 +16,15 @@ import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Image;
-import java.awt.RadialGradientPaint;
 import java.awt.Window;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
@@ -56,7 +53,6 @@ import javax.swing.JScrollPane;
 import javax.swing.LayoutFocusTraversalPolicy;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 import org.triplea.awt.OpenFileUtility;
 import org.triplea.config.product.ProductVersionReader;
 import org.triplea.swing.JButtonBuilder;
@@ -489,28 +485,11 @@ public class MetaSetupPanel extends SetupPanel {
         || component instanceof TutorialsPanel;
   }
 
-  /**
-   * The window's color, and a faint glow of the accent in the middle of the menu column that fades
-   * out before its edge, so the map of the day's shade meets the plain color there.
-   */
+  /** The window's plain color, which the map of the day's shade meets at the menu's edge. */
   @Override
   protected void paintComponent(final Graphics g) {
-    final Graphics2D g2 = (Graphics2D) g.create();
-    g2.setColor(MenuColors.windowColor());
-    g2.fillRect(0, 0, getWidth(), getHeight());
-    final Color accent = UIManager.getColor("TripleA.highlightBackground");
-    if (accent != null) {
-      final int menuWidth = menuWidth(getWidth());
-      g2.setPaint(
-          new RadialGradientPaint(
-              menuWidth * 0.42f,
-              getHeight() * 0.46f,
-              Math.max(1f, menuWidth * 0.42f),
-              new float[] {0f, 1f},
-              new Color[] {MenuColors.withAlpha(accent, 12), MenuColors.withAlpha(accent, 0)}));
-      g2.fillRect(0, 0, menuWidth, getHeight());
-    }
-    g2.dispose();
+    g.setColor(MenuColors.windowColor());
+    g.fillRect(0, 0, getWidth(), getHeight());
   }
 
   /** The width of the menu column in a window of the width: about a quarter, within bounds. */

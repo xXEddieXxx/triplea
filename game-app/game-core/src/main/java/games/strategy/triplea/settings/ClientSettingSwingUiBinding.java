@@ -10,6 +10,7 @@ import static games.strategy.triplea.settings.SelectionComponentFactory.proxySet
 import static games.strategy.triplea.settings.SelectionComponentFactory.selectionBox;
 
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.engine.framework.lookandfeel.RelationshipColorScheme;
 import games.strategy.triplea.UrlConstants;
 import games.strategy.triplea.settings.lobby.LobbySelectionViewFactory;
 import games.strategy.triplea.ui.MapTextStyleEditor;
@@ -17,8 +18,9 @@ import games.strategy.triplea.ui.screen.UnitsDrawer.UnitFlagDrawMode;
 import java.awt.KeyboardFocusManager;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.Locale;
 import javax.swing.JComponent;
 import javax.swing.UIManager.LookAndFeelInfo;
 import lombok.AllArgsConstructor;
@@ -241,6 +243,24 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     }
   },
 
+  RELATIONSHIP_COLOR_SCHEME_BINDING(
+      "Relationship Colors",
+      SettingType.LOOK_AND_FEEL,
+"""
+War/allied/neutral colors in the politics panel and status bar.
+Color blind friendly uses orange/blue instead of red/green.""") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return selectionBox(
+          ClientSetting.relationshipColorScheme,
+          RelationshipColorScheme.class,
+          List.of(RelationshipColorScheme.values()),
+          Optional::of,
+          Function.identity(),
+          RelationshipColorScheme::getDisplayName);
+    }
+  },
+
   MAP_EDGE_SCROLL_SPEED_BINDING(
       "Scrolling at the map edge",
       SettingGroup.ZOOM_AND_SCROLLING,
@@ -373,19 +393,30 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
   },
 
   SHOW_BATTLES_WHEN_OBSERVING_BINDING(
-      "Show battles when I only watch",
-      SettingGroup.BATTLES,
-      "Open the battle window also in games you only observe") {
+        "Show battles when I only watch",
+        SettingGroup.BATTLES,
+        "Open the battle window also in games you only observe") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
-      return booleanCheckBox(ClientSetting.showBattlesWhenObserving);
+        return booleanCheckBox(ClientSetting.showBattlesWhenObserving);
     }
   },
 
-  BATTLE_CALC_SIMULATION_COUNT_DICE_BINDING(
-      "Battle calculator: runs in dice games",
-      SettingGroup.BATTLE_CALCULATOR,
-      "How many battles the calculator plays through. More is more exact, but slower.") {
+  USE_BOUNDED_CONTEXT_BATTLE_CALC(
+      "Use bounded-context battle calculator (Beta)",
+      SettingType.TESTING,
+      "Toggles the in-development engine-free battle odds calculator. Off by default; still under "
+          + "development. Takes effect the next time the battle calculator is opened.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanRadioButtons(ClientSetting.useBoundedContextBattleCalc);
+    }
+  },
+
+  DO_NOT_REDRAW_MAP(
+      "Do Not Redraw Map",
+      SettingType.TESTING,
+      "Toggles whether to completely redraw the map when a technology is discovered. Default is fully redraw. No redraw makes the \"flash\" you see disappear when a tech is added.") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return intValueRange(ClientSetting.battleCalcSimulationCountDice, 10, 100_000);

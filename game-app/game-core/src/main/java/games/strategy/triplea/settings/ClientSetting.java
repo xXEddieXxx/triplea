@@ -6,6 +6,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.ClientFileSystemHelper;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.engine.framework.lookandfeel.RelationshipColorScheme;
 import games.strategy.engine.framework.map.download.MapBrowserView;
 import games.strategy.engine.framework.map.download.MapSort;
 import games.strategy.engine.framework.startup.ui.posted.game.DiceServerEditor;
@@ -62,6 +63,16 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new IntegerClientSetting("BATTLE_CALC_SIMULATION_COUNT_DICE", 200);
   public static final ClientSetting<Integer> battleCalcSimulationCountLowLuck =
       new IntegerClientSetting("BATTLE_CALC_SIMULATION_COUNT_LOW_LUCK", 500);
+
+  /**
+   * Selects the engine-free bounded-context odds calculator at construction time: when on, {@code
+   * BattleCalculatorFactory} builds the bounded-context implementation instead of the {@code
+   * MustFightBattle}-backed one. Off by default so the production path stays the real {@code
+   * MustFightBattle}.
+   */
+  public static final BooleanClientSetting useBoundedContextBattleCalc =
+      new BooleanClientSetting("USE_BOUNDED_CONTEXT_BATTLE_CALC");
+
   public static final ClientSetting<Boolean> confirmDefensiveRolls =
       new BooleanClientSetting("CONFIRM_DEFENSIVE_ROLLS");
   public static final ClientSetting<Boolean> confirmEnemyCasualties =
@@ -179,6 +190,11 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new LongClientSetting("TRIPLEA_LAST_CHECK_FOR_MAP_UPDATES_EPOCH_MILLI", 0);
   public static final ClientSetting<Boolean> promptToDownloadTutorialMap =
       new BooleanClientSetting("TRIPLEA_PROMPT_TO_DOWNLOAD_TUTORIAL_MAP", true);
+  public static final ClientSetting<RelationshipColorScheme> relationshipColorScheme =
+      new EnumClientSetting<>(
+          RelationshipColorScheme.class,
+          "RELATIONSHIP_COLOR_SCHEME",
+          RelationshipColorScheme.STANDARD);
   public static final ClientSetting<UnitsDrawer.UnitFlagDrawMode> unitFlagDrawMode =
       new EnumClientSetting<>(
           UnitsDrawer.UnitFlagDrawMode.class,

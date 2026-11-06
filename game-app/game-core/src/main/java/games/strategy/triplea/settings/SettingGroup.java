@@ -9,14 +9,16 @@ import lombok.Getter;
  * heading, eg "Battles" in Gameplay. Groups appear in their section in the order of this enum.
  */
 enum SettingGroup {
-  NOTIFICATIONS("Notifications", SettingType.GAMEPLAY),
   BATTLES("Battles", SettingType.GAMEPLAY),
   BATTLE_CALCULATOR("Battle calculator", SettingType.GAMEPLAY),
   COMPUTER_PLAYERS("Computer players", SettingType.GAMEPLAY),
 
+  // what the game window shows while a game runs, gathered for its settings button
+  MAP("Map", SettingType.IN_GAME),
+  NOTIFICATIONS("Notifications", SettingType.IN_GAME),
+
   LOOK("Look", SettingType.GRAPHICS),
   WINDOW("Window", SettingType.GRAPHICS),
-  MAP("Map", SettingType.GRAPHICS),
 
   SOUND("Sound", SettingType.AUDIO),
 

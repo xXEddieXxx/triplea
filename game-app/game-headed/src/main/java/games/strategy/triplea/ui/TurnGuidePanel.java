@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -23,7 +24,9 @@ import org.triplea.swing.jpanel.GridBagConstraintsFill;
 /**
  * Tells the player whose turn it is, which phase of the turn is running and what to do in it, so
  * that new players need not know every phase by heart. Shown as a bar across the top of the game
- * window.
+ * window, with the game's menus at its left end (the history, save, the settings, ...) and the
+ * tools at its right end (the battle calculator, edit mode, ...), which show from the start, also
+ * in the history; the turn shows once the first game step began.
  */
 @Slf4j
 class TurnGuidePanel extends JPanel {
@@ -37,26 +40,35 @@ class TurnGuidePanel extends JPanel {
           .foregroundColor(LookAndFeel.getSecondaryTextColor())
           .iconTextGap(6)
           .build();
-  private final JLabel phaseLabel = new JLabelBuilder().bold().adjustFontSize(6).build();
+  private final JLabel phaseLabel = new JLabelBuilder().bold().adjustFontSize(3).build();
   private final WrappingText hintText = new WrappingText();
   // counts the steps to show; a step shown late, after a slow flag image, must not win
   private final AtomicLong stepsToShow = new AtomicLong();
 
-  TurnGuidePanel(final UiContext uiContext) {
+  /**
+   * @param leadingTool At the left end of the bar, eg the history (which opens on the left), save
+   *     and the settings.
+   * @param tools The window's tools, eg the battle calculator, at the right end of the bar.
+   */
+  TurnGuidePanel(final UiContext uiContext, final JComponent leadingTool, final JComponent tools) {
     super(new BorderLayout(32, 0));
     this.uiContext = uiContext;
     hintText.setForeground(LookAndFeel.getSecondaryTextColor());
     setBorder(
         BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, LookAndFeel.getSeparatorColor()),
-            BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-    // a bar over the map, as strategy games show the turn: who and which round, the phase in
-    // large, and what to do in it
-    final JPanel turnAndPhase = new JPanel(new BorderLayout(0, 2));
+            BorderFactory.createEmptyBorder(4, 12, 4, 12)));
+    // a slim bar over the map, as strategy games show the turn: who and which round, beside it the
+    // phase in larger text, and what to do in it
+    final JPanel turnAndPhase = new JPanel(new BorderLayout(14, 0));
     turnAndPhase.setOpaque(false);
-    turnAndPhase.add(turnLabel, BorderLayout.NORTH);
-    turnAndPhase.add(phaseLabel, BorderLayout.CENTER);
-    add(turnAndPhase, BorderLayout.WEST);
+    turnAndPhase.add(centeredVertically(turnLabel), BorderLayout.WEST);
+    turnAndPhase.add(centeredVertically(phaseLabel), BorderLayout.CENTER);
+    final JPanel leading = new JPanel(new BorderLayout(16, 0));
+    leading.setOpaque(false);
+    leading.add(centeredVertically(leadingTool), BorderLayout.WEST);
+    leading.add(turnAndPhase, BorderLayout.CENTER);
+    add(leading, BorderLayout.WEST);
     final JPanel hint = new JPanel(new GridBagLayout());
     hint.setOpaque(false);
     hint.add(
@@ -66,8 +78,15 @@ class TurnGuidePanel extends JPanel {
             .fill(GridBagConstraintsFill.HORIZONTAL)
             .build());
     add(hint, BorderLayout.CENTER);
-    // nothing to show before the first game step
-    setVisible(false);
+    add(centeredVertically(tools), BorderLayout.EAST);
+  }
+
+  /** Centered in the height of the bar, whose phase is in larger text. */
+  private static JPanel centeredVertically(final JComponent component) {
+    final JPanel centered = new JPanel(new GridBagLayout());
+    centered.setOpaque(false);
+    centered.add(component);
+    return centered;
   }
 
   /**
@@ -98,7 +117,6 @@ class TurnGuidePanel extends JPanel {
           phaseLabel.setText(stepDisplayName);
           hintText.setText(hint);
           hintText.setVisible(!hint.isEmpty());
-          setVisible(true);
           revalidate();
         });
   }

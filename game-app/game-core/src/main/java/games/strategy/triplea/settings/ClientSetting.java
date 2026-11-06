@@ -18,6 +18,7 @@ import java.awt.Frame;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -150,6 +151,18 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new IntegerClientSetting("SERVER_START_GAME_SYNC_WAIT_TIME", 180);
   public static final ClientSetting<Boolean> showBattlesWhenObserving =
       new BooleanClientSetting("SHOW_BATTLES_WHEN_OBSERVING", true);
+
+  /** Whether the game map shows the markers of territory effects, eg mountains, if it has any. */
+  public static final ClientSetting<Boolean> showTerritoryEffects =
+      new BooleanClientSetting("SHOW_TERRITORY_EFFECTS", true);
+
+  /** Whether the status bar of a game lists the units of the territory under the mouse. */
+  public static final ClientSetting<Boolean> showUnitsInStatusBar =
+      new BooleanClientSetting("SHOW_UNITS_IN_STATUS_BAR", true);
+
+  /** Whether the status bar of a game shows the zoom of the map in percent. */
+  public static final ClientSetting<Boolean> showMapZoom =
+      new BooleanClientSetting("SHOW_MAP_ZOOM", false);
 
   /** Whether the setup screen shows each nation's income fields in its row. */
   public static final ClientSetting<Boolean> showResourceModifiers =
@@ -327,6 +340,15 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
 
   public static void showSettingsWindow(final Frame owner) {
     SettingsWindow.INSTANCE.open(owner);
+  }
+
+  /**
+   * Opens the settings on the section, eg In game from the game window, with the settings of the
+   * game's map at the top of In game, eg its zoom.
+   */
+  public static void showSettingsWindow(
+      final Frame owner, final SettingType section, final List<MapSetting> mapSettings) {
+    SettingsWindow.INSTANCE.open(owner, section, mapSettings);
   }
 
   /** Persists all pending client setting changes to the backing store. */

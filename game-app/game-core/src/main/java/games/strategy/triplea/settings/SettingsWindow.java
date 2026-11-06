@@ -9,6 +9,7 @@ import java.awt.BorderLayout;
 import java.awt.Dialog.ModalityType;
 import java.awt.Dimension;
 import java.awt.Frame;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.swing.JComponent;
@@ -65,6 +66,20 @@ public enum SettingsWindow {
    * window, otherwise, eg during a game, as a dialog.
    */
   public void open(final Frame owner) {
+    open(owner, SettingType.GAMEPLAY);
+  }
+
+  /** Opens the settings as {@link #open(Frame)} does, on the section, eg In game. */
+  public void open(final Frame owner, final SettingType section) {
+    open(owner, section, List.of());
+  }
+
+  /**
+   * Opens the settings as {@link #open(Frame)} does, on the section, with the settings of a running
+   * game's map at the top of In game, eg its zoom.
+   */
+  public void open(
+      final Frame owner, final SettingType section, final List<MapSetting> mapSettings) {
     Preconditions.checkState(SwingUtilities.isEventDispatchThread());
     if (dialog != null && !dialog.isDisplayable()) {
       // closing its owner, eg the game window, disposed the dialog without a closing event
@@ -75,14 +90,18 @@ public enum SettingsWindow {
       dialog.toFront();
     } else if (pageHost == null) {
       MainWindowPages.getVisibleMainWindow()
-          .ifPresentOrElse(this::openAsPage, () -> openAsDialog(owner));
+          .ifPresentOrElse(
+              mainWindow -> openAsPage(mainWindow, section, mapSettings),
+              () -> openAsDialog(owner, section, mapSettings));
     }
   }
 
   /** The main window shows the bar above the page; its link back saves and closes. */
-  private void openAsPage(final PageHost mainWindow) {
+  private void openAsPage(
+      final PageHost mainWindow, final SettingType section, final List<MapSetting> mapSettings) {
     pageHost = mainWindow;
-    page = new SettingsPage();
+    page = new SettingsPage(mapSettings);
+    page.showSection(section);
     mainWindow.showPage(
         TITLE, page.getComponent(), newSavedNote(), this::saveAndClose, this::pageLeft);
   }
@@ -102,11 +121,13 @@ public enum SettingsWindow {
     close();
   }
 
-  private void openAsDialog(final Frame owner) {
+  private void openAsDialog(
+      final Frame owner, final SettingType section, final List<MapSetting> mapSettings) {
     dialog = new JDialog(owner, TITLE);
     // modal: the game's menus change some of these settings too, and leaving must not undo that
     dialog.setModalityType(ModalityType.APPLICATION_MODAL);
-    page = new SettingsPage();
+    page = new SettingsPage(mapSettings);
+    page.showSection(section);
     // the same bar as on the page of the main window; its link, Escape and the mouse go back
     final JPanel content = new JPanel(new BorderLayout());
     content.add(new BackBar("Game", TITLE, this::saveAndClose, newSavedNote()), BorderLayout.NORTH);

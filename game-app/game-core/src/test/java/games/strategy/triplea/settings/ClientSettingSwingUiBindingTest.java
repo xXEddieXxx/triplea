@@ -47,7 +47,7 @@ final class ClientSettingSwingUiBindingTest {
         .containsExactly(SettingType.AUDIO, SettingType.ONLINE);
   }
 
-  @DisplayName("The switches of the View and Game menus are in Settings, in the fitting section")
+  @DisplayName("The switches of the View and Game menus are together in the In game section")
   @Test
   void menuSwitchesAreSettings() {
     assertThat(
@@ -57,14 +57,22 @@ final class ClientSettingSwingUiBindingTest {
                 sectionOf("Text on the map"),
                 sectionOf("End of turn report"),
                 sectionOf("Lock the map"),
+                sectionOf("Show the comment log"),
+                sectionOf("Territory effects on the map"),
+                sectionOf("Units in the status bar"),
+                sectionOf("Zoom in the status bar"),
                 sectionOf("Arrow keys with Ctrl")))
-        .as("before only reachable during a game, now also before one starts")
+        .as("what the game window shows, in the section its settings button opens; keys elsewhere")
         .containsExactly(
-            SettingType.GRAPHICS,
-            SettingType.GRAPHICS,
-            SettingType.GRAPHICS,
-            SettingType.GAMEPLAY,
-            SettingType.CONTROLS,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
+            SettingType.IN_GAME,
             SettingType.CONTROLS);
   }
 
@@ -89,7 +97,13 @@ final class ClientSettingSwingUiBindingTest {
     assertThat(Arrays.stream(SettingType.values()).map(type -> type.title))
         .as("what to change decides the section, not the part of the engine")
         .containsExactly(
-            "Gameplay", "Graphics", "Audio", "Controls", "Online & multiplayer", "Advanced");
+            "Gameplay",
+            "In game",
+            "Graphics",
+            "Audio",
+            "Controls",
+            "Online & multiplayer",
+            "Advanced");
     assertThat(
             List.of(
                 sectionOf("Theme"),

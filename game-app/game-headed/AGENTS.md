@@ -43,7 +43,7 @@ macOS-specific: opening a file or a `triplea://` URI is translated to the corres
 - **`games.strategy.triplea`** — `TripleAPlayer` (human player controller — extends `AbstractBasePlayer`, manages all turn phases by delegating to `TripleAFrame` UI methods)
 - **`games.strategy.triplea.odds.calculator`** — `BattleCalculatorDialog` (battle outcome odds calculator, extends `JDialog`)
 - **`games.strategy.triplea.ui`** — Gameplay UI components (see [Gameplay UI](#gameplay-ui))
-- **`games.strategy.triplea.ui.menubar`** — Main menu bar (File, View, Game, Export, Network, Lobby, Debug menus — 8 files)
+- **`games.strategy.triplea.ui.menubar`** — The game window's quick bar of icons (`GameToolBar`) with the menus behind them (files, statistics and exports, network, help), and the map's settings that were the View menu (`MapViewSettings`)
 - **`games.strategy.triplea.ui.display`** — `TripleADisplay` (implements `IDisplay`, routes engine display events to `TripleAFrame` methods)
 - **`games.strategy.triplea.ui.export`** — `ScreenshotExporter` (renders map to PNG with optional title overlay)
 - **`games.strategy.triplea.ui.panel.move`** — `MovePanel` (movement phase UI), `DoneMoveAction`
@@ -65,9 +65,9 @@ The headed module provides ~20 gameplay UI files in `games.strategy.triplea.ui` 
 `TripleAFrame` (extends `JFrame`, implements `QuitHandler`) is the main game window. Layout:
 
 - **Map area**: `MapPanel` (interactive game map from game-core) + `ImageScrollerSmallView` (minimap at the top of the right-hand side panel, which is at least 360 px wide)
-- **Turn guide**: `TurnGuidePanel` as a bar across the top of the window, over map and side panel — current player, round and phase, plus a plain-language hint for new players of what to do in the phase (`PhaseHints`, chosen from the step like `TripleAPlayer` chooses the action panel: by step name, with the step properties deciding non-combat moves and bids)
-- **Tabbed pane** (`JTabbedPane`) with keyboard shortcuts:
-  - "Actions" (Ctrl+C) — `ActionButtonsPanel` (phase-specific action panels)
+- **Turn guide**: `TurnGuidePanel` as a slim bar across the top of the window, over map and side panel — current player and round with the phase beside them on one line, plus a plain-language hint for new players of what to do in the phase (`PhaseHints`, chosen from the step like `TripleAPlayer` chooses the action panel: by step name, with the step properties deciding non-combat moves and bids)
+- **Tabbed pane** (`JTabbedPane`, all tabs in view in as many rows as needed; FlatLaf's `rotateTabRuns: false` keeps each row in its place when a tab is chosen) with keyboard shortcuts:
+  - "Actions" (Ctrl+C) — `ActionButtonsPanel` (phase-specific action panels); while the history shows (with a "History" tab beside it), a note and a "Back to the game" button (the Show current game action) instead
   - "Players" (Ctrl+P) — `StatPanel` (player statistics)
   - "Technology" (Ctrl+Y) — `TechnologyPanel` (conditional: only if tech is in the game)
   - "Resources" (Ctrl+R) — `EconomyPanel`
@@ -75,7 +75,7 @@ The headed module provides ~20 gameplay UI files in `games.strategy.triplea.ui` 
   - "Territory" (Ctrl+T) — `TerritoryDetailPanel`
 - **Conditional panels**: `EditPanel` (shown as tab when edit mode is active), `HistoryPanel` (game history navigation)
 - **Other components**: `ChatPanel` (multiplayer chat, nullable), `CommentPanel`, `BottomBar`
-- **Menu bar**: `TripleAMenuBar`
+- **Quick bar**: `GameToolBar`'s game menus (history, save, settings, network) at the left end of the turn guide, its tools (battle calculator, find, politics, edit mode, statistics, help) at the right end; the bar shows from the start and also in the history, in place of a menu bar (see [Menu Bar](#menu-bar-uimenubar-10-files))
 
 ### ActionPanel Hierarchy
 
@@ -115,16 +115,17 @@ Manages the set of `ActionPanel` instances using `CardLayout`, showing the appro
 - **`FindTerritoryDialog`** / **`FindTerritoryAction`** — Search for territories by name.
 - **`TerritoryDetailPanel`** — Displays detailed territory information (units, production, owner).
 
-### Menu Bar (`ui/menubar/`, 8 files)
+### Menu Bar (`ui/menubar/`, 10 files)
 
-- **`TripleAMenuBar`** — Main menu bar builder, assembles all submenus.
-- **`FileMenu`** — Save, load, post PBEM/PBF turns.
-- **`ViewMenu`** — Map display options (zoom, unit display flags, map skin selection).
-- **`GameMenu`** — Game options and settings.
-- **`ExportMenu`** — Export setup/stats/unit stats as text or images.
-- **`NetworkMenu`** — Network game management (change map, password, boot/ban players).
+- **`GameToolBar`** — The game window has no menu bar and no ☰: every entry is behind an icon (22 px `ToolIcon`s whose tool tips say what they do, shown at once on hover). `newGameMenus` is a `JMenuBar` of icons at the left end of the turn guide (the bar across the top): the history book (the game's own Show history, again Show current game), the save icon with the File menu, the gear for the settings on their In game section (`GameMenu.showSettings`, which redraws the map and shows or hides the comment log as the settings changed), and the network icon (only in network games). At the right end, the bar itself, a `JMenuBar` of tools: buttons for the battle calculator, find a territory, politics (`GameMenu.showPoliticsPanel`) and edit mode (a toggle on the frame's edit mode model), the statistics icon (statistics, dice, exports) and, at the very right, the help icon. Being menu bars, the icon menus keep their accelerators (eg Ctrl+S) and Alt and a menu's letter opens them (Alt+F, Alt+S, Alt+N, Alt+H); the shortcuts of the former Game and View menus are bound on the window: Ctrl+B battle calculator, Ctrl+F find, Ctrl+W (Cmd+O on macOS) politics, Ctrl+E edit mode, Ctrl+G current game, Ctrl+H (Cmd+Y) history, Ctrl+L lock map. The same bar on every system, macOS included.
+- **`TripleAMenuBar`** — Builds the icon menus: files, statistics (with the entries of `ExportMenu`), network (the lobby's and `NetworkMenu`'s entries, only online) and help (with the game's options to look at and `DebugMenu` at the end).
+- **`FileMenu`** — Save, post PBEM/PBF turns, leave the game, exit; behind the save icon.
+- **`MapViewSettings`** — There is no View menu any more: its entries are settings. Map zoom (with fit width, fit height and 100%), the unit size and skin of this map and the units hidden for a moment are `MapSetting`s, which `GameMenu.showSettings` passes to the settings window as This map at the top of In game; they change the map at once, and the map keeps zoom, unit size and skin per map. How the map looks for good (flags, relief, blends, map text, territory effects, comment log, lock map, the status bar's units and zoom) is in the In game settings too. Ctrl+F finds a territory and Ctrl+L locks the map (`GameToolBar`).
+- **`GameMenu`** — No Game menu any more: the statistics and dice entries for the statistics icon, the game's options to look at for the help icon, the politics panel and `showSettings`, which applies what the settings changed to the running game. Sound is in the settings (Audio).
+- **`ExportMenu`** — Export setup/stats/unit stats as text or images; its entries are in the statistics icon's menu.
+- **`NetworkMenu`** — Network game management (change map, password, boot/ban players); its entries are in the network icon's menu.
 - **`LobbyMenu`** — The lobby's menu, behind the Menu button of `LobbyPanel`: account, moderator toolbox, sound and chat, help.
-- **`DebugMenu`** — Developer debug options.
+- **`DebugMenu`** — Developer debug options (AI), at the end of the help icon's menu.
 
 Note: Help menu content (`HelpMenu`, `MoveHelpMenu`, `UnitHelpMenu`, etc.) lives in **game-core** `ui/menubar/help/`.
 

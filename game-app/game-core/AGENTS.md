@@ -31,7 +31,7 @@ The core game engine module. Contains the generic turn-based strategy engine fra
 - **`formatter/`** — Display formatting for game data
 - **`odds/calculator/`** — Battle odds simulation
 - **`Properties.java`** — Game property constants (single file, not a package)
-- **`settings/`** — Client settings management; `SettingsWindow` shows a `SettingsPage` below a `BackBar` (the main window's, back to the main menu, or in the dialog its own, back to the game; both with the note that leaving saves), on the left a search field and one button per `SettingType` (Gameplay, Graphics, Audio, Controls, Online & multiplayer, Advanced), on the right the chosen section's settings under their `SettingGroup` headings, or the settings matching the search. Each setting, bound in `ClientSettingSwingUiBinding`, is a row with title and description on the left and its control (switch, slider, combo box, ...) on the right. The settings are saved when they are left; they open as a page of the main window while that is showing, otherwise as a modal dialog
+- **`settings/`** — Client settings management; `SettingsWindow` shows a `SettingsPage` below a `BackBar` (the main window's, back to the main menu, or in the dialog its own, back to the game; both with the note that leaving saves), on the left a search field and one button per `SettingType` (Gameplay, In game, Graphics, Audio, Controls, Online & multiplayer, Advanced; In game gathers the map, status bar and notification settings of a game, which the game window's menus no longer have, and its settings button opens the window there, `ClientSetting.showSettingsWindow(owner, section, mapSettings)`, with the game's `MapSetting`s, eg its zoom, as This map at the top), on the right the chosen section's settings under their `SettingGroup` headings, or the settings matching the search. Each setting, bound in `ClientSettingSwingUiBinding`, is a row with title and description on the left and its control (switch, slider, combo box, ...) on the right. The settings are saved when they are left; they open as a page of the main window while that is showing, otherwise as a modal dialog
 - **`ui/`** — Swing UI components for gameplay (see [UI Layer](#ui-layer) below for details)
 - **`util/`** — Various utility classes
 
@@ -553,7 +553,7 @@ Navigation widget that helps players "scroll through" units that haven't moved y
 
 **Debug submenu** (`menubar/debug/`, 2 files): `AiPlayerDebugAction`, `AiPlayerDebugOption`.
 
-Note: The main menu bar (`TripleAMenuBar`) and most menu implementations (`FileMenu`, `ViewMenu`, `GameMenu`, etc.) live in **game-headed**, not game-core. Game-core only provides the help and debug menu content.
+Note: The game window's menus (`TripleAMenuBar`, `FileMenu`, `GameMenu`, etc., behind the icons of the game window's top bar, `GameToolBar`) live in **game-headed**, not game-core. Game-core only provides the help and debug menu content.
 
 ### Map Data (`mapdata/`, 3 files)
 

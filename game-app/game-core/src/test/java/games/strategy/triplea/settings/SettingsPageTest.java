@@ -10,8 +10,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JSpinner;
 import javax.swing.SwingUtilities;
 import javax.swing.text.JTextComponent;
 import org.junit.jupiter.api.AfterEach;
@@ -37,10 +39,45 @@ final class SettingsPageTest {
     final SettingsPage page = givenSettingsPage();
 
     assertThat(page.getShownSettingTitles())
-        .as("notifications first, the computer players last, nothing of other sections")
-        .startsWith("Tell me when all units have moved", "Highlight territory when cycling units")
+        .as("battles first, the computer players last; the messages of a game are In game")
+        .startsWith("Confirm my defensive dice")
         .endsWith("Pause between moves", "Pause between battle steps")
-        .doesNotContain("Theme");
+        .doesNotContain("Theme", "Tell me when all units have moved");
+  }
+
+  @DisplayName("In game gathers what the game window shows: the map, then the messages")
+  @Test
+  void inGameGathersMapAndMessages() throws Exception {
+    final SettingsPage page = givenSettingsPage();
+
+    SwingUtilities.invokeAndWait(() -> page.showSection(SettingType.IN_GAME));
+
+    assertThat(page.getShownSettingTitles())
+        .as("the settings the View and Game menus switched, for the game window's settings button")
+        .contains("Lock the map", "Show the comment log", "End of turn report")
+        .doesNotContain("Theme", "Confirm my defensive dice");
+  }
+
+  @DisplayName("A game's map settings, eg its zoom, lead In game and are found by the search")
+  @Test
+  void mapSettingsLeadInGame() throws Exception {
+    final List<MapSetting> mapSettings =
+        List.of(
+            new MapSetting("Map zoom", "How large the map shows", new JSpinner()),
+            new MapSetting("Unit size", "How large the units show", new JComboBox<String>()));
+    final SettingsPage page = new SettingsPage(mapSettings);
+
+    SwingUtilities.invokeAndWait(() -> page.showSection(SettingType.IN_GAME));
+    final List<String> inGame = page.getShownSettingTitles();
+    SwingUtilities.invokeAndWait(() -> page.getSearchField().setText("units"));
+
+    assertThat(inGame)
+        .as("the View menu of before, at the top of the section the game window opens")
+        .startsWith("Map zoom", "Unit size");
+    assertThat(page.getShownSettingTitles())
+        .as("searched like the other settings")
+        .contains("Unit size")
+        .doesNotContain("Map zoom");
   }
 
   @DisplayName("A search shows the matching settings of all sections")

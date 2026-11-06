@@ -17,9 +17,11 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -65,6 +67,8 @@ final class SettingsPage {
   private final Map<ClientSettingSwingUiBinding, JComponent> rowsBySetting =
       new EnumMap<>(ClientSettingSwingUiBinding.class);
   private final Map<SettingType, JToggleButton> sectionButtons = new EnumMap<>(SettingType.class);
+  // the settings of the running game's map, in the order the game gave them, with their rows
+  private final Map<MapSetting, JComponent> mapRows = new LinkedHashMap<>();
 
   @Getter(onMethod_ = {@VisibleForTesting})
   private final JTextField searchField = new JTextField();
@@ -76,8 +80,20 @@ final class SettingsPage {
 
   /** Creates the page; the window or page around it shows the {@code BackBar} above it. */
   SettingsPage() {
+    this(List.of());
+  }
+
+  /**
+   * Creates the page with the settings of a running game's map, which show as This map at the top
+   * of In game.
+   */
+  SettingsPage(final List<MapSetting> mapSettings) {
     Arrays.stream(ClientSettingSwingUiBinding.values())
         .forEach(setting -> rowsBySetting.put(setting, newSettingRow(setting)));
+    mapSettings.forEach(
+        setting ->
+            mapRows.put(
+                setting, newRow(setting.title(), setting.description(), setting.control())));
     final JPanel content = new ScrollableJPanel();
     content.setLayout(new GridBagLayout());
     content.setBorder(BorderFactory.createEmptyBorder(32, 48, 40, MARGIN));
@@ -110,10 +126,15 @@ final class SettingsPage {
         selectionComponentsBySetting
             .computeIfAbsent(setting, ClientSettingSwingUiBinding::newSelectionComponent)
             .getUiComponent();
-    final JLabel title = JLabelBuilder.builder().text(setting.getTitle()).bold().build();
+    return newRow(setting.getTitle(), setting.getDescription(), control);
+  }
+
+  private static JComponent newRow(
+      final String titleText, final String descriptionText, final JComponent control) {
+    final JLabel title = JLabelBuilder.builder().text(titleText).bold().build();
     // screen readers name a switch or field by its title
     title.setLabelFor(control);
-    final WrappingText description = new WrappingText(setting.getDescription());
+    final WrappingText description = new WrappingText(descriptionText);
     description.setForeground(LookAndFeel.getSecondaryTextColor());
     final JPanel texts = new JPanel(new BorderLayout(0, 4));
     texts.setOpaque(false);
@@ -218,8 +239,7 @@ final class SettingsPage {
     return button;
   }
 
-  /** Shows the section, leaving a search. */
-  @VisibleForTesting
+  /** Shows the section, leaving a search; eg the one the window opens on. */
   void showSection(final SettingType section) {
     selectedSection = section;
     searchField.setText("");
@@ -253,6 +273,9 @@ final class SettingsPage {
 
   private void addSection(final SettingType section) {
     addTitle(section.title, section.intro);
+    if (section == SettingType.IN_GAME && !mapRows.isEmpty()) {
+      addMapRows(mapRows.keySet());
+    }
     Arrays.stream(SettingGroup.values())
         .filter(group -> group.getType() == section)
         .forEach(
@@ -300,6 +323,12 @@ final class SettingsPage {
     addSpace(4);
   }
 
+  /** The settings of the running game's map below their heading, This map. */
+  private void addMapRows(final Collection<MapSetting> settings) {
+    addGroupHeading("This map");
+    settings.stream().map(mapRows::get).forEach(this::addToColumn);
+  }
+
   private void addRows(final Predicate<ClientSettingSwingUiBinding> filter) {
     Arrays.stream(ClientSettingSwingUiBinding.values())
         .filter(filter)
@@ -323,11 +352,16 @@ final class SettingsPage {
    */
   private void addSearchResults(final String searchText) {
     final List<ClientSettingSwingUiBinding> matches = search(searchText);
-    if (matches.isEmpty()) {
+    final List<MapSetting> mapMatches =
+        mapRows.keySet().stream().filter(setting -> setting.matches(searchText)).toList();
+    if (matches.isEmpty() && mapMatches.isEmpty()) {
       addTitle("Search results", "No setting matches “" + searchText + "”.");
       return;
     }
     addTitle("Search results", "Settings whose name or description contains this text.");
+    if (!mapMatches.isEmpty()) {
+      addMapRows(mapMatches);
+    }
     Arrays.stream(SettingType.values())
         .filter(section -> matches.stream().anyMatch(setting -> setting.getType() == section))
         .forEach(
@@ -368,9 +402,13 @@ final class SettingsPage {
     return Arrays.stream(column.getComponents())
         .flatMap(
             part ->
-                rowsBySetting.entrySet().stream()
-                    .filter(row -> row.getValue() == part)
-                    .map(row -> row.getKey().getTitle()))
+                Stream.concat(
+                    rowsBySetting.entrySet().stream()
+                        .filter(row -> row.getValue() == part)
+                        .map(row -> row.getKey().getTitle()),
+                    mapRows.entrySet().stream()
+                        .filter(row -> row.getValue() == part)
+                        .map(row -> row.getKey().title())))
         .toList();
   }
 

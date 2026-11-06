@@ -2,6 +2,7 @@ package games.strategy.triplea.ui;
 
 import static games.strategy.triplea.image.UnitImageFactory.ImageKey;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import games.strategy.engine.chat.Chat;
@@ -32,6 +33,7 @@ import games.strategy.engine.framework.HistorySynchronizer;
 import games.strategy.engine.framework.IGame;
 import games.strategy.engine.framework.LocalPlayers;
 import games.strategy.engine.framework.ServerGame;
+import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.lookandfeel.LookAndFeelSwingFrameListener;
 import games.strategy.engine.framework.startup.ui.InGameLobbyWatcherWrapper;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameFileSelector;
@@ -73,7 +75,7 @@ import games.strategy.triplea.ui.export.ScreenshotExporter;
 import games.strategy.triplea.ui.history.HistoryDetailsPanel;
 import games.strategy.triplea.ui.history.HistoryLog;
 import games.strategy.triplea.ui.history.HistoryPanel;
-import games.strategy.triplea.ui.menubar.TripleAMenuBar;
+import games.strategy.triplea.ui.menubar.GameToolBar;
 import games.strategy.triplea.ui.panel.move.MovePanel;
 import games.strategy.triplea.ui.panels.map.MapPanel;
 import games.strategy.triplea.util.TuvCostsCalculator;
@@ -112,6 +114,7 @@ import java.io.Serial;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -168,6 +171,7 @@ import org.triplea.swing.EventThreadJOptionPane.ConfirmDialogType;
 import org.triplea.swing.SwingAction;
 import org.triplea.swing.SwingComponents;
 import org.triplea.swing.WindowAdapterFactory;
+import org.triplea.swing.WrappingText;
 import org.triplea.swing.jpanel.JPanelBuilder;
 import org.triplea.swing.key.binding.KeyCode;
 import org.triplea.swing.key.binding.SwingKeyBinding;
@@ -180,6 +184,8 @@ import org.triplea.util.Tuple;
 @Slf4j
 public final class TripleAFrame extends JFrame implements QuitHandler {
   private static final long serialVersionUID = 7640069668264418976L;
+  // the name of the Actions tab's content while the history shows
+  private static final String BACK_TO_GAME_TAB = "back to game";
 
   @Getter private final LocalPlayers localPlayers;
   private final GameData data;
@@ -311,7 +317,8 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     editModeButtonModel = new JToggleButton.ToggleButtonModel();
     editModeButtonModel.setEnabled(false);
 
-    this.setJMenuBar(TripleAMenuBar.get(this));
+    // no menu bar: its entries are behind the icons of the top bar
+    final GameToolBar gameToolBar = new GameToolBar(this);
     final ImageScrollModel model = new ImageScrollModel();
     model.setMaxBounds(
         uiContext.getMapData().getMapDimensions().width,
@@ -385,10 +392,13 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     smallView.addFocusListener(focusToMapPanelFocusListener);
     tabsPanel.addFocusListener(focusToMapPanelFocusListener);
     // the turn across the top, over map and side panel
-    turnGuidePanel = new TurnGuidePanel(uiContext);
+    turnGuidePanel = new TurnGuidePanel(uiContext, GameToolBar.newGameMenus(this), gameToolBar);
     gameMainPanel.add(turnGuidePanel, BorderLayout.NORTH);
     rightHandSidePanel.add(smallView, BorderLayout.NORTH);
     tabsPanel.setBorder(null);
+    // all tabs in view, in as many rows as they need; a row keeps its place when one of its tabs
+    // is chosen (Swing would move it next to the content)
+    tabsPanel.putClientProperty(FlatClientProperties.STYLE, "rotateTabRuns: false");
     rightHandSidePanel.add(tabsPanel, BorderLayout.CENTER);
 
     final MovePanel movePanel = new MovePanel(this);
@@ -550,6 +560,8 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
 
   private void addTabs(HistoryDetailsPanel historyDetailPanel) {
     if (historyDetailPanel != null) {
+      // no actions while the history shows; the tab stays, with the way back to the game
+      addTab("Actions", newBackToGamePanel(), KeyCode.C);
       tabsPanel.add("History", historyDetailPanel);
     } else {
       addTab("Actions", actionButtonsPanel, KeyCode.C);
@@ -567,6 +579,35 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     if (mapPanel.getEditMode()) {
       showEditMode();
     }
+  }
+
+  /**
+   * The Actions tab while the history shows: what the player looks at, and a button back to the
+   * game, where the actions are; the game goes on meanwhile.
+   */
+  private JComponent newBackToGamePanel() {
+    final JButton back = new JButton(showGameAction);
+    back.setText("Back to the game");
+    LookAndFeel.setPrimaryButtonStyle(back);
+    final WrappingText note =
+        new WrappingText(
+            "You are looking at the history of the game. Your actions are in the current game,"
+                + " which goes on meanwhile.");
+    final JPanel panel = new JPanel(new BorderLayout(0, 12));
+    panel.setName(BACK_TO_GAME_TAB);
+    panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+    panel.add(note, BorderLayout.NORTH);
+    final JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    buttonRow.add(back);
+    panel.add(buttonRow, BorderLayout.CENTER);
+    return panel;
+  }
+
+  /** Removes the way back to the game, which the actions replace. */
+  private void removeBackToGameTab() {
+    Arrays.stream(tabsPanel.getComponents())
+        .filter(component -> BACK_TO_GAME_TAB.equals(component.getName()))
+        .forEach(tabsPanel::remove);
   }
 
   private void addTab(final String title, final Component component, final KeyCode hotkey) {
@@ -791,9 +832,12 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
                   historyComponentSplitPane.setLeftComponent(historyPanel);
                   historyComponentSplitPane.setRightComponent(gameCenterPanel);
                   historyComponentSplitPane.setDividerLocation(150);
+                  // the top bar stays: its tools, and the menus with their shortcuts, in history
+                  // too
                   final JPanel historyComponent =
                       new JPanelBuilder()
                           .borderLayout()
+                          .addNorth(turnGuidePanel)
                           .addCenter(historyComponentSplitPane)
                           .addSouth(bottomBar)
                           .build();
@@ -2261,8 +2305,9 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
                   if (inGame.compareAndSet(false, true)) {
                     showGameOffEdt();
                   }
-                  if (tabsPanel.indexOfTab("Actions") == -1) {
-                    // add actions tab
+                  if (tabsPanel.indexOfComponent(actionButtonsPanel) == -1) {
+                    // the actions, in place of the way back to the game the history shows there
+                    removeBackToGameTab();
                     tabsPanel.insertTab("Actions", null, actionButtonsPanel, null, 0);
                   }
                   tabsPanel.setSelectedIndex(0);
@@ -2271,10 +2316,16 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     final Tuple<Territory, Set<Unit>> territoryAndUnits =
         actionButtonsPanel.waitForPickTerritoryAndUnits(
             territoryChoices, unitChoices, unitsPerPick);
-    final int index = tabsPanel.indexOfTab("Actions");
+    final int index = tabsPanel.indexOfComponent(actionButtonsPanel);
     if (index != -1 && inHistory.get()) {
-      // remove actions tab
-      Interruptibles.await(() -> SwingAction.invokeAndWait(() -> tabsPanel.remove(index)));
+      // the history keeps its Actions tab, with the way back to the game in place of the actions
+      Interruptibles.await(
+          () ->
+              SwingAction.invokeAndWait(
+                  () -> {
+                    tabsPanel.remove(index);
+                    tabsPanel.insertTab("Actions", null, newBackToGamePanel(), null, index);
+                  }));
     }
     actionButtonsPanel.getCurrent().ifPresent(actionPanel -> actionPanel.setActive(false));
     return territoryAndUnits;

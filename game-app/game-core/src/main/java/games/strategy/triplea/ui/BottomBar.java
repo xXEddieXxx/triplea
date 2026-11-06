@@ -17,6 +17,7 @@ import games.strategy.engine.framework.GameDataUtils;
 import games.strategy.triplea.Constants;
 import games.strategy.triplea.attachments.RelationshipTypeAttachment;
 import games.strategy.triplea.attachments.TerritoryAttachment;
+import games.strategy.triplea.settings.ClientSetting;
 import java.awt.Color;
 import java.awt.Image;
 import java.util.Collection;
@@ -87,7 +88,7 @@ public class BottomBar extends JPanel implements TerritoryListener, ZoomMapListe
     statusMessage.setPreferredSize(new java.awt.Dimension(0, 0));
     statusMessage.setBorder(newSectionBorder());
 
-    zoomLabel.setVisible(false);
+    zoomLabel.setVisible(ClientSetting.showMapZoom.getValueOrThrow());
     zoomLabel.setBorder(newSectionBorder());
 
     centerPanel.add(

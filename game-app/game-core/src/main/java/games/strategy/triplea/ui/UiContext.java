@@ -18,6 +18,7 @@ import games.strategy.triplea.image.TileImageFactory;
 import games.strategy.triplea.image.UnitIconImageFactory;
 import games.strategy.triplea.image.UnitImageFactory;
 import games.strategy.triplea.image.UnitImageFactory.ImageKey;
+import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.ui.mapdata.MapData;
 import java.awt.Cursor;
 import java.awt.Image;
@@ -81,8 +82,6 @@ public class UiContext {
   @Getter private final DiceImageFactory diceImageFactory;
   @Getter private final PuImageFactory puImageFactory = new PuImageFactory();
   private boolean drawUnits = true;
-  @Getter @Setter private boolean showUnitsInStatusBar = true;
-  private boolean drawTerritoryEffects;
 
   @Getter private Cursor cursor;
 
@@ -146,7 +145,6 @@ public class UiContext {
     puImageFactory.setResourceLoader(resourceLoader);
     tileImageFactory = new TileImageFactory(resourceLoader, mapData);
     mapImage = new MapImage(resourceLoader);
-    drawTerritoryEffects = mapData.useTerritoryEffectMarkers();
     // set the resource loader
     // this allows us to play sounds the map folder, rather than just default sounds
     clipPlayer = new ClipPlayer(resourceLoader);
@@ -225,12 +223,17 @@ public class UiContext {
     drawUnits = showUnits;
   }
 
-  public void setShowTerritoryEffects(final boolean showTerritoryEffects) {
-    drawTerritoryEffects = showTerritoryEffects;
+  /**
+   * Whether the map shows its territory effects: if it has markers for them and the setting is on.
+   */
+  public boolean getShowTerritoryEffects() {
+    return mapData.useTerritoryEffectMarkers()
+        && ClientSetting.showTerritoryEffects.getValueOrThrow();
   }
 
-  public boolean getShowTerritoryEffects() {
-    return drawTerritoryEffects;
+  /** Whether the status bar lists the units of the territory under the mouse, a setting. */
+  public boolean isShowUnitsInStatusBar() {
+    return ClientSetting.showUnitsInStatusBar.getValueOrThrow();
   }
 
   public void setUnitScaleFactor(final double scaleFactor) {

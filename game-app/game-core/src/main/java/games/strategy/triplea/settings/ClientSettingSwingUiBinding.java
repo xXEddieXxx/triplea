@@ -234,12 +234,48 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
 
   LOCK_MAP_BINDING(
       "Lock the map",
-      SettingGroup.ZOOM_AND_SCROLLING,
+      SettingGroup.MAP,
       "Keep the map where you scrolled it: it no longer moves to your capital or to battles."
-          + " Also in the View menu of a game.") {
+          + " Ctrl+L (Cmd+L on macOS) switches it during a game.") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return booleanCheckBox(ClientSetting.lockMap);
+    }
+  },
+
+  SHOW_COMMENT_LOG_BINDING(
+      "Show the comment log", SettingGroup.MAP, "The comments of the players, below the map.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showCommentLog);
+    }
+  },
+
+  SHOW_TERRITORY_EFFECTS_BINDING(
+      "Territory effects on the map",
+      SettingGroup.MAP,
+      "Markers of territory effects, eg mountains, on maps that have them.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showTerritoryEffects);
+    }
+  },
+
+  SHOW_UNITS_IN_STATUS_BAR_BINDING(
+      "Units in the status bar",
+      SettingGroup.MAP,
+      "The status bar below the map lists the units of the territory under the mouse.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showUnitsInStatusBar);
+    }
+  },
+
+  SHOW_MAP_ZOOM_BINDING(
+      "Zoom in the status bar", SettingGroup.MAP, "The zoom of the map in percent, eg 80%.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.showMapZoom);
     }
   },
 

@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.text.JTextComponent;
 import org.junit.jupiter.api.DisplayName;
@@ -84,6 +86,27 @@ final class TurnGuidePanelTest {
     assertThat(texts).as("the hint is hidden").containsExactly("Round 3", "End Round");
   }
 
+  @DisplayName("The bar shows the window's tools from the start, before the first step")
+  @Test
+  void toolsShowBeforeTheFirstStep() {
+    final JButton menu = new JButton("Menu");
+    final JButton history = new JButton("History");
+
+    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, history, menu);
+    turnGuidePanel.setSize(1000, 80);
+    layOut(turnGuidePanel);
+
+    assertThat(turnGuidePanel.isVisible())
+        .as("the menu must be reachable at once, eg to leave a game that has not started")
+        .isTrue();
+    assertThat(SwingUtilities.isDescendingFrom(menu, turnGuidePanel))
+        .as("the tools sit in the bar")
+        .isTrue();
+    assertThat(SwingUtilities.convertPoint(history, 0, 0, turnGuidePanel).x)
+        .as("the history at the left end, where it opens; the other tools at the right")
+        .isLessThan(SwingUtilities.convertPoint(menu, 0, 0, turnGuidePanel).x);
+  }
+
   @DisplayName("A step shown late, after a slow flag image, does not replace the step after it")
   @Test
   @Timeout(10)
@@ -92,7 +115,7 @@ final class TurnGuidePanelTest {
     final CountDownLatch flagLoaded = new CountDownLatch(1);
     givenSlowFlag(flagRequested, flagLoaded);
     when(uiContext.isCurrentPlayerRemote()).thenReturn(false);
-    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext);
+    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, new JPanel(), new JPanel());
     final Thread purchase =
         new Thread(
             () ->
@@ -133,10 +156,18 @@ final class TurnGuidePanelTest {
   private List<String> whenStepIsShown(
       final String phaseHint, final String stepDisplayName, @Nullable final GamePlayer player)
       throws InterruptedException, InvocationTargetException {
-    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext);
+    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, new JPanel(), new JPanel());
     turnGuidePanel.showStep(3, phaseHint, stepDisplayName, player);
     SwingUtilities.invokeAndWait(() -> {}); // the guide updates itself on the EDT
     return visibleTexts(turnGuidePanel);
+  }
+
+  private static void layOut(final Container container) {
+    container.doLayout();
+    Arrays.stream(container.getComponents())
+        .filter(Container.class::isInstance)
+        .map(Container.class::cast)
+        .forEach(TurnGuidePanelTest::layOut);
   }
 
   /** The texts of the visible labels and texts of the guide, in reading order. */

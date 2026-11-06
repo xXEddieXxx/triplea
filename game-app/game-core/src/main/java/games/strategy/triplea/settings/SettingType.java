@@ -12,7 +12,12 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public enum SettingType {
   /** How a game plays: messages, battles, the computer players. */
-  GAMEPLAY("Gameplay", "Messages, battles and how fast the computer plays."),
+  GAMEPLAY("Gameplay", "Battles, the battle calculator and how fast the computer plays."),
+
+  /**
+   * While a game runs: the map, units and messages, which the game window's settings button opens.
+   */
+  IN_GAME("In game", "How the map and units show while you play, and the messages you get."),
 
   /** How TripleA looks: theme, text size, window, map. */
   GRAPHICS("Graphics", "Theme, text size, the window and how the map looks."),

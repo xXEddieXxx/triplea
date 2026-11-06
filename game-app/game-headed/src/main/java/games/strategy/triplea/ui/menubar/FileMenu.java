@@ -71,17 +71,19 @@ final class FileMenu {
   private JMenuItem newSaveMenuItem(final TripleAFrame frame) {
     return new JMenuItemBuilder("Save", Mnemonic.SAVE.getMnemonicCode())
         .accelerator(KeyCode.S)
-        .actionListener(
-            () -> {
-              IGame game = frame.getGame();
-              final Optional<Path> f = GameFileSelector.getSaveGameLocation(frame, game.getData());
-              if (f.isPresent()) {
-                game.saveGame(f.get());
-                JOptionPane.showMessageDialog(
-                    frame, "Game Saved", "Game Saved", JOptionPane.INFORMATION_MESSAGE);
-              }
-            })
+        .actionListener(() -> save(frame))
         .build();
+  }
+
+  /** Asks where to save the game and saves it there. */
+  private static void save(final TripleAFrame frame) {
+    final IGame game = frame.getGame();
+    final Optional<Path> f = GameFileSelector.getSaveGameLocation(frame, game.getData());
+    if (f.isPresent()) {
+      game.saveGame(f.get());
+      JOptionPane.showMessageDialog(
+          frame, "Game Saved", "Game Saved", JOptionPane.INFORMATION_MESSAGE);
+    }
   }
 
   private JMenuItem addPostPbem(TripleAFrame frame) {

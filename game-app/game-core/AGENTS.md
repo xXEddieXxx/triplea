@@ -340,7 +340,7 @@ The `startup/` package manages everything from game selection through network se
 - **`PlayerTypes`** — Enum of player types (Human, various AIs).
 - **`ClientOptions`** / **`ServerOptions`** — Game options dialogs for client/server.
 - **`InGameLobbyWatcher`** / **`InGameLobbyWatcherWrapper`** — Posts game status to the lobby while a game is running.
-- **`panels/main/game/selector/`** — Game file selection UI: `GameSelectorPanel`, `GameSelectorModel`, `GameFileSelector`, `SavedGameLoader` (loads a save behind a wait dialog and shows why one failed).
+- **`panels/main/game/selector/`** — Game file selection UI: `GameSelectorPanel` (the setup screen's right column: the map's card, and behind "Show game options" the game's options as a narrow `PropertiesUi` and each nation's income, scrolling in the height left), `GameSelectorModel`, `GameFileSelector`, `SavedGameLoader` (loads a save behind a wait dialog and shows why one failed).
 - **`FileBackedGamePropertiesCache`** / **`IGamePropertiesCache`** — Persists game property selections.
 
 #### PBEM/PBF UI (`startup/ui/posted/`)

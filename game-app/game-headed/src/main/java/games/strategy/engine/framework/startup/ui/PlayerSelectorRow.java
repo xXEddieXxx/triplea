@@ -1,11 +1,9 @@
 package games.strategy.engine.framework.startup.ui;
 
 import games.strategy.engine.data.GamePlayer;
-import games.strategy.engine.data.properties.GameProperties;
 import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.startup.launcher.local.PlayerCountrySelection;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
-import games.strategy.triplea.Constants;
 import java.awt.Container;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
@@ -15,7 +13,6 @@ import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 
 /**
@@ -28,10 +25,6 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
   private final String playerName;
   private final GamePlayer player;
   private final JComboBox<String> playerTypes;
-  private final JComponent incomePercentage;
-  private final JLabel incomePercentageLabel;
-  private final JComponent puIncomeBonus;
-  private final JLabel puIncomeBonusLabel;
   private boolean enabled = true;
   private final JLabel name;
   private JButton alliances;
@@ -47,7 +40,6 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
       final Map<String, Boolean> playersEnablementListing,
       final Collection<String> playerAlliances,
       final SetupPanel parent,
-      final GameProperties gameProperties,
       final PlayerTypes playerTypes) {
     this.playersThatMayBeDisabled = playersThatMayBeDisabled;
     this.parent = parent;
@@ -100,15 +92,6 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
                               && row.alliances.getText().equals(alliancesLabelText))
                   .forEach(row -> row.setPlayerType(HeadedPlayerTypes.HUMAN_PLAYER.getLabel())));
     }
-
-    incomePercentage =
-        gameProperties
-            .getPlayerPropertyOrThrow(Constants.getPropertyNameIncomePercentageFor(player))
-            .getEditorComponent();
-    incomePercentageLabel = new JLabel("%");
-
-    puIncomeBonus = gameProperties.ensurePropertyPuIncomeBonusFor(player).getEditorComponent();
-    puIncomeBonusLabel = new JLabel("PUs");
 
     setWidgetActivation();
   }
@@ -175,70 +158,6 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
               0,
               0));
     }
-    gridx++;
-    container.add(
-        incomePercentage,
-        new GridBagConstraints(
-            gridx++,
-            row,
-            1,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 20, 2, 0),
-            0,
-            0));
-    container.add(
-        incomePercentageLabel,
-        new GridBagConstraints(
-            gridx++,
-            row,
-            1,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 5, 5, 5),
-            0,
-            0));
-    container.add(
-        puIncomeBonus,
-        new GridBagConstraints(
-            gridx++,
-            row,
-            1,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 20, 2, 0),
-            0,
-            0));
-    container.add(
-        puIncomeBonusLabel,
-        new GridBagConstraints(
-            gridx,
-            row,
-            1,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 5, 5, 5),
-            0,
-            0));
-  }
-
-  void setResourceModifiersVisible(final boolean isVisible) {
-    incomePercentage.setVisible(isVisible);
-    incomePercentageLabel.setVisible(isVisible);
-    puIncomeBonus.setVisible(isVisible);
-    puIncomeBonusLabel.setVisible(isVisible);
   }
 
   void setPlayerType(final String playerType) {
@@ -295,8 +214,6 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
       alliances.setEnabled(enabled);
     }
     enabledCheckBox.setEnabled(playersThatMayBeDisabled.contains(playerName));
-    incomePercentage.setEnabled(enabled);
-    puIncomeBonus.setEnabled(enabled);
     parent.fireListener();
   }
 }

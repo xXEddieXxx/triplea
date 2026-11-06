@@ -81,20 +81,28 @@ final class MainPanelTest {
         .contains(quit, startGame, changeGame);
   }
 
-  @DisplayName("A setup screen sets the game's options below the players; the main menu has none")
+  @DisplayName(
+      "A setup screen shows the game's options beside the players on request; the main menu has"
+          + " none")
   @Test
   void setupScreenShowsGameOptions() throws Exception {
     gameSelectorModel.setGameData(TestMapGameData.REVISED.getGameData());
     model.showLocal();
     // the game's part updates on the Swing thread
     SwingUtilities.invokeAndWait(() -> {});
+    final List<String> beforeAsked = buttonTitles(mainPanel);
+    findButton(mainPanel, "Show game options").doClick();
     final List<String> onSetupScreen = buttonTitles(mainPanel);
 
     model.showSelectType();
 
+    assertThat(beforeAsked)
+        .as("the options wait behind their button, so the card and the players have the room")
+        .contains("Load game...", "Show game options")
+        .doesNotContain("Reset");
     assertThat(onSetupScreen)
-        .as("the options right on the screen, the map's card with loading a game beside")
-        .contains("Reset", "Make default", "Load game...");
+        .as("the options right on the screen, below the map's card with loading a game")
+        .contains("Reset", "Make default", "Load game...", "Hide game options");
     assertThat(buttonTitles(mainPanel))
         .as("the main menu chooses how to play first")
         .doesNotContain("Reset", "Load game...");

@@ -4,10 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
-import games.strategy.engine.data.properties.NumberProperty;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
-import games.strategy.triplea.Constants;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.util.ArrayList;
@@ -82,24 +80,16 @@ final class PlayerSelectorRowTest {
   private static PlayerSelectorRow givenRowOf(
       final String name, @Nullable final String defaultType) {
     final GameData data = TestMapGameData.REVISED.getGameData();
-    return givenRowOf(new GamePlayer(name, false, false, defaultType, false, data), data);
+    return givenRowOf(new GamePlayer(name, false, false, defaultType, false, data));
   }
 
   private static PlayerSelectorRow givenHiddenRowOf(final String name, final String defaultType) {
     final GameData data = TestMapGameData.REVISED.getGameData();
-    return givenRowOf(new GamePlayer(name, false, false, defaultType, true, data), data);
+    return givenRowOf(new GamePlayer(name, false, false, defaultType, true, data));
   }
 
-  private static PlayerSelectorRow givenRowOf(final GamePlayer player, final GameData data) {
+  private static PlayerSelectorRow givenRowOf(final GamePlayer player) {
     final String name = player.getName();
-    // the row shows the income modifiers of its nation
-    data.getProperties()
-        .addPlayerProperty(
-            new NumberProperty(
-                Constants.getPropertyNameIncomePercentageFor(player), null, 999, 0, 100));
-    data.getProperties()
-        .addPlayerProperty(
-            new NumberProperty(Constants.getPropertyNamePuIncomeBonusFor(player), null, 999, 0, 0));
     return new PlayerSelectorRow(
         new ArrayList<>(),
         player,
@@ -108,7 +98,6 @@ final class PlayerSelectorRowTest {
         Map.of(name, true),
         List.of(),
         new LocalSetupPanel(new GameSelectorModel()),
-        data.getProperties(),
         new PlayerTypes(HeadedPlayerTypes.getPlayerTypes()));
   }
 }

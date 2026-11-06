@@ -2,6 +2,8 @@ package games.strategy.engine.framework.startup.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import games.strategy.engine.data.GameData;
+import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
@@ -15,7 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.swing.AbstractButton;
+import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +88,60 @@ final class SetupPanelTest {
     assertThat(findButton(global1940Panel, playButtonTitle("Neutral_True")))
         .as("eight buttons would not fit; nobody plays the neutrals")
         .isEmpty();
+  }
+
+  @DisplayName(
+      "More than five alliances are a list; choosing one sets the players up like a button")
+  @Test
+  void manyAlliancesAreAList() {
+    final GameData game = givenRevisedWithSixAlliances();
+    final List<PlayerSelectorRow> rows = new ArrayList<>();
+    final JPanel panel = new JPanel();
+    new LocalSetupPanel(new GameSelectorModel())
+        .layoutPlayerComponentsWithQuickSetup(panel, rows, game);
+    final JComboBox<?> list = findAllianceList(panel);
+
+    list.setSelectedItem(playButtonTitle("Axis"));
+
+    assertThat(findButton(panel, playButtonTitle("Axis")))
+        .as("six buttons in a row would grow wider than the screen")
+        .isEmpty();
+    assertThat(rows.stream().filter(row -> row.getPlayerType().getLabel().equals(HUMAN)))
+        .as("the Axis nations to the player, the others to the computer")
+        .extracting(PlayerSelectorRow::getPlayerName)
+        .containsExactlyInAnyOrder("Germans", "Japanese");
+  }
+
+  /** Revised's Axis and Allies, plus four alliances of two nations each. */
+  private static GameData givenRevisedWithSixAlliances() {
+    final GameData game = TestMapGameData.REVISED.getGameData();
+    final List<GamePlayer> players = game.getPlayerList().getPlayers();
+    for (int i = 1; i <= 4; i++) {
+      game.getAllianceTracker().addToAlliance(players.get(i - 1), "Pact " + i);
+      game.getAllianceTracker().addToAlliance(players.get(i), "Pact " + i);
+    }
+    return game;
+  }
+
+  /** The list whose first entry asks to choose an alliance. */
+  private static JComboBox<?> findAllianceList(final Container container) {
+    final String prompt =
+        I18nEngineFramework.get().getText("startup.SetupPanel.quickSetup.ChooseAlliance.Lbl");
+    return componentsIn(container)
+        .filter(JComboBox.class::isInstance)
+        .map(component -> (JComboBox<?>) component)
+        .filter(list -> list.getItemCount() > 0 && prompt.equals(list.getItemAt(0)))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("No alliance list"));
+  }
+
+  private static Stream<Component> componentsIn(final Container container) {
+    return Arrays.stream(container.getComponents())
+        .flatMap(
+            component ->
+                component instanceof Container inner
+                    ? Stream.concat(Stream.of(component), componentsIn(inner))
+                    : Stream.of(component));
   }
 
   @DisplayName("Play by email or forum shows the player table without the quick setup")

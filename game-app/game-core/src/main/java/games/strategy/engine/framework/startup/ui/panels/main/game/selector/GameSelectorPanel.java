@@ -2,8 +2,12 @@ package games.strategy.engine.framework.startup.ui.panels.main.game.selector;
 
 import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.data.GameData;
+import games.strategy.engine.data.GamePlayer;
+import games.strategy.engine.data.properties.GameProperties;
 import games.strategy.engine.data.properties.IEditableProperty;
 import games.strategy.engine.data.properties.PropertiesUi;
+import games.strategy.engine.framework.I18nEngineFramework;
+import games.strategy.engine.framework.I18nResourceBundle;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.DownloadMapsWindow;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListing;
@@ -11,6 +15,7 @@ import games.strategy.engine.framework.startup.ui.FileBackedGamePropertiesCache;
 import games.strategy.engine.framework.startup.ui.IGamePropertiesCache;
 import games.strategy.engine.framework.ui.GameChooser;
 import games.strategy.engine.framework.ui.background.BackgroundTaskRunner;
+import games.strategy.triplea.Constants;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -40,6 +45,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -47,15 +54,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.triplea.java.ThreadRunner;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.JLabelBuilder;
+import org.triplea.swing.ScrollableJPanel;
 import org.triplea.swing.SwingAction;
+import org.triplea.swing.SwingComponents;
+import org.triplea.swing.jpanel.GridBagConstraintsAnchor;
 import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
 import org.triplea.swing.jpanel.GridBagConstraintsFill;
 
 /**
  * The selected game of a setup screen, in the column on its right: the map's picture, the game's
- * name, round and save, and Change map, Load game and Get more maps. The game's options are a part
- * of their own ({@link #getOptionsPanel}), which the screen shows below the players, so they are
- * set on the screen itself instead of in a dialog.
+ * name, round and save, Change map, Load game and Get more maps, and below them the game's options
+ * and each nation's income behind a button, so they are set on the screen itself instead of in a
+ * dialog without crowding it.
  */
 @Slf4j
 public final class GameSelectorPanel extends JPanel implements Observer {
@@ -63,6 +73,9 @@ public final class GameSelectorPanel extends JPanel implements Observer {
 
   /** The width of the map's picture; as wide as 16:9 makes it, as the map browser shows maps. */
   private static final int PICTURE_WIDTH = 288;
+
+  private static final String SHOW_OPTIONS = "Show game options";
+  private static final String HIDE_OPTIONS = "Hide game options";
 
   private final GameSelectorModel model;
   private final IGamePropertiesCache gamePropertiesCache = new FileBackedGamePropertiesCache();
@@ -91,7 +104,14 @@ public final class GameSelectorPanel extends JPanel implements Observer {
           .toolTip("Open a game saved on your computer and play on")
           .build();
 
+  private final JButton optionsToggle =
+      new JButtonBuilder()
+          .title(SHOW_OPTIONS)
+          .toolTip("The game's rules, eg Low Luck, and each nation's income")
+          .build();
   private final JPanel options = new JPanel(new BorderLayout(0, 8));
+  // takes the room below the card while the options are hidden, so the card stays at the top
+  private final JPanel optionsGap = new JPanel();
   // what the options show, so a new layout comes only with another game, not on each update
   private @Nullable GameData optionsGame;
   private boolean optionsEditable;
@@ -105,7 +125,7 @@ public final class GameSelectorPanel extends JPanel implements Observer {
       gamePropertiesCache.loadCachedGamePropertiesInto(data);
     }
 
-    // one column, top to bottom: the map's card, the link to more maps
+    // one column, top to bottom: the map's card, the link to more maps, the options
     setLayout(new GridBagLayout());
     add(LookAndFeel.newSectionLabel("Map"), buildGridRow(0, new Insets(0, 0, 6, 0)));
     add(newGameCard(), buildGridRow(1, new Insets(0, 0, 0, 0)));
@@ -118,11 +138,14 @@ public final class GameSelectorPanel extends JPanel implements Observer {
     LookAndFeel.setBorderlessButtonStyle(moreMaps);
     moreMaps.setHorizontalAlignment(SwingConstants.LEADING);
     add(moreMaps, buildGridRow(2, new Insets(10, 0, 0, 0)));
-    // keeps the card at the top
-    add(
-        new JPanel(),
-        new GridBagConstraintsBuilder(0, 3).weightY(1).fill(GridBagConstraintsFill.BOTH).build());
+    add(optionsToggle, buildGridRow(3, new Insets(16, 0, 0, 0)));
+    // the options take the rest of the height and scroll within it
+    add(options, buildFillingRow(4, new Insets(12, 0, 0, 0)));
+    add(optionsGap, buildFillingRow(5, new Insets(0, 0, 0, 0)));
     options.setOpaque(false);
+    // a long list of options would push the card away; they show when asked for
+    options.setVisible(false);
+    optionsToggle.addActionListener(e -> setOptionsShown(!options.isVisible()));
 
     changeMap.addActionListener(
         e -> {
@@ -159,6 +182,24 @@ public final class GameSelectorPanel extends JPanel implements Observer {
         .build();
   }
 
+  /** A row taking the height the others leave. */
+  private static GridBagConstraints buildFillingRow(final int y, final Insets insets) {
+    return new GridBagConstraintsBuilder(0, y)
+        .weightX(1)
+        .weightY(1)
+        .fill(GridBagConstraintsFill.BOTH)
+        .insets(insets)
+        .build();
+  }
+
+  private void setOptionsShown(final boolean shown) {
+    options.setVisible(shown);
+    optionsGap.setVisible(!shown);
+    optionsToggle.setText(shown ? HIDE_OPTIONS : SHOW_OPTIONS);
+    revalidate();
+    repaint();
+  }
+
   /** The selected game with what belongs to it: its map's picture, changing it, loading a save. */
   private JPanel newGameCard() {
     final JPanel card = new JPanel(new GridBagLayout());
@@ -174,10 +215,12 @@ public final class GameSelectorPanel extends JPanel implements Observer {
   }
 
   /**
-   * The options of the selected game, eg Low Luck or technology, to set right on the setup screen;
-   * with Reset and Make default where the player may change them, to look at on a joined game.
+   * The options of the selected game, eg Low Luck or technology, and each nation's income, to set
+   * right on the setup screen; with Reset and Make default where the player may change them, to
+   * look at on a joined game.
    */
-  public JComponent getOptionsPanel() {
+  @VisibleForTesting
+  JComponent getOptionsPanel() {
     return options;
   }
 
@@ -242,13 +285,12 @@ public final class GameSelectorPanel extends JPanel implements Observer {
     optionsEditable = editable;
     optionsOfBot = ofBot;
     options.removeAll();
-    final JPanel heading = new JPanel(new BorderLayout());
-    heading.setOpaque(false);
-    heading.add(LookAndFeel.newSectionLabel("Game options"), BorderLayout.WEST);
-    final JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+    // the button above names the options; this row has what can be done with them
+    final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 12, 0));
+    // the first link lines up with the button; the layout puts its gap before it too
+    actions.setBorder(BorderFactory.createEmptyBorder(0, -12, 0, 0));
     actions.setOpaque(false);
-    heading.add(actions, BorderLayout.EAST);
-    options.add(heading, BorderLayout.NORTH);
+    options.add(actions, BorderLayout.NORTH);
     if (ofBot) {
       // the bot keeps the options: they are changed by asking it
       final JButton change =
@@ -261,18 +303,16 @@ public final class GameSelectorPanel extends JPanel implements Observer {
               .build();
       actions.add(change);
     }
-    if (data == null || data.getProperties().getEditableProperties().isEmpty()) {
+    if (data == null) {
       // a joined game has its data at its host only
       options.add(
           new JLabelBuilder(
-                  data == null && !editable
-                      ? "The host sets the game's options."
-                      : "This game has no options.")
+                  editable ? "This game has no options." : "The host sets the game's options.")
               .foregroundColor(LookAndFeel.getSecondaryTextColor())
               .build(),
           BorderLayout.CENTER);
     } else {
-      if (editable) {
+      if (editable && !data.getProperties().getEditableProperties().isEmpty()) {
         actions.add(
             newOptionsLink("Reset", "Back to the options the game was loaded with", this::reset));
         actions.add(
@@ -281,12 +321,79 @@ public final class GameSelectorPanel extends JPanel implements Observer {
                 "Start every new game of this map with these options",
                 () -> gamePropertiesCache.cacheGameProperties(model.getGameData())));
       }
-      options.add(
-          PropertiesUi.newScrollableView(new PropertiesUi(data.getProperties(), editable)),
-          BorderLayout.CENTER);
+      final PropertiesUi rules = PropertiesUi.newNarrow(data.getProperties(), editable);
+      final JPanel stack = new JPanel(new BorderLayout(0, 24));
+      stack.add(rules, BorderLayout.NORTH);
+      stack.add(newIncomePanel(data, editable), BorderLayout.CENTER);
+      // as wide as the column: the options wrap into it instead of scrolling sideways
+      final ScrollableJPanel content = new ScrollableJPanel();
+      content.setLayout(new BorderLayout());
+      content.add(stack, BorderLayout.NORTH);
+      final JScrollPane scroll = SwingComponents.newJScrollPane(content);
+      scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+      // the column's width and the height left below the card decide the size, not the options
+      scroll.setPreferredSize(new Dimension(0, 0));
+      options.add(PropertiesUi.withFilter(rules, scroll), BorderLayout.CENTER);
     }
     options.revalidate();
     options.repaint();
+  }
+
+  /**
+   * Each nation's income: the share of its production it collects and a bonus on top. Nations the
+   * map hides are left out, but their bonus is brought up to date with the others.
+   */
+  private static JPanel newIncomePanel(final GameData data, final boolean editable) {
+    final I18nResourceBundle bundle = I18nEngineFramework.get();
+    final JPanel panel = new JPanel(new GridBagLayout());
+    panel.add(
+        LookAndFeel.newSectionLabel(bundle.getText("startup.SetupPanel.resourceModifiers.Lbl")),
+        new GridBagConstraintsBuilder(0, 0)
+            .gridWidth(3)
+            .anchor(GridBagConstraintsAnchor.WEST)
+            .insets(0, 0, 8, 0)
+            .build());
+    panel.add(newColumnLabel(bundle.getText("startup.SetupPanel.income.Lbl")), newIncomeCell(1, 1));
+    panel.add(
+        newColumnLabel(bundle.getText("startup.SetupPanel.bonusIncome.Lbl")), newIncomeCell(2, 1));
+    final GameProperties properties = data.getProperties();
+    int y = 2;
+    for (final GamePlayer player : data.getPlayerList().getPlayers()) {
+      final IEditableProperty<?> income =
+          properties.getPlayerPropertyOrThrow(Constants.getPropertyNameIncomePercentageFor(player));
+      // renames a bonus an old save has under its former name
+      final IEditableProperty<?> bonus = properties.ensurePropertyPuIncomeBonusFor(player);
+      if (!player.isHidden()) {
+        panel.add(new JLabel(player.getName()), newIncomeCell(0, y));
+        panel.add(newWithUnit(income, editable, "%"), newIncomeCell(1, y));
+        panel.add(newWithUnit(bonus, editable, "PUs"), newIncomeCell(2, y));
+        y++;
+      }
+    }
+    return panel;
+  }
+
+  private static JLabel newColumnLabel(final String text) {
+    return new JLabelBuilder(text).foregroundColor(LookAndFeel.getSecondaryTextColor()).build();
+  }
+
+  private static GridBagConstraints newIncomeCell(final int x, final int y) {
+    return new GridBagConstraintsBuilder(x, y)
+        // the last column takes the rest of the width, so the table stays at the left
+        .weightX(x == 2 ? 1 : 0)
+        .anchor(GridBagConstraintsAnchor.WEST)
+        .insets(0, x == 0 ? 0 : 12, 4, 0)
+        .build();
+  }
+
+  /** The property's editor, or its value where it is not to be changed, and its unit. */
+  private static JPanel newWithUnit(
+      final IEditableProperty<?> property, final boolean editable, final String unit) {
+    final JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+    panel.setBorder(BorderFactory.createEmptyBorder(0, -4, 0, 0));
+    panel.add(editable ? property.getEditorComponent() : property.getViewComponent());
+    panel.add(new JLabel(unit));
+    return panel;
   }
 
   private static JButton newOptionsLink(

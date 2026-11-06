@@ -13,6 +13,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +31,6 @@ import org.triplea.game.chat.ChatModel;
 import org.triplea.game.startup.SetupModel;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.JLabelBuilder;
-import org.triplea.swing.SwingAction;
 import org.triplea.swing.SwingComponents;
 
 /**
@@ -42,9 +42,11 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
   private static final String SET_ALL_DEFAULT_LABEL =
       I18nEngineFramework.get().getText("startup.SetupPanel.SET_ALL_DEFAULT_LABEL");
 
-  // a cell right of and below the player table, taking the room a large window has left
-  private static final int FILLER_COLUMN = 50;
+  // a cell below the player table, taking the height a large window has left
   private static final int FILLER_ROW = 10_000;
+
+  /** Up to this many alliances get a button each in the quick setup; more get a list. */
+  private static final int MAX_ALLIANCE_BUTTONS = 5;
 
   @Nullable private transient Consumer<SetupPanel> listener;
 
@@ -183,7 +185,7 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
     panel.add(
         allianceLabel,
         new GridBagConstraints(
-            gridX++,
+            gridX,
             gridY,
             1,
             1,
@@ -194,57 +196,9 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
             new Insets(0, 7, 5, 5),
             0,
             0));
-    final JButton resourceModifiers = new JButton();
-    panel.add(
-        resourceModifiers,
-        new GridBagConstraints(
-            gridX,
-            gridY - 1,
-            3,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(5, 5, 15, 0),
-            0,
-            0));
-    final JLabel incomeLabel = new JLabel(bundle.getText("startup.SetupPanel.income.Lbl"));
-    panel.add(
-        incomeLabel,
-        new GridBagConstraints(
-            gridX++,
-            gridY,
-            1,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 20, 5, 0),
-            0,
-            0));
-    incomeLabel.setVisible(false);
-    gridX++;
-    final JLabel puIncomeBonusLabel =
-        new JLabel(bundle.getText("startup.SetupPanel.bonusIncome.Lbl"));
-    panel.add(
-        puIncomeBonusLabel,
-        new GridBagConstraints(
-            gridX,
-            gridY,
-            2,
-            1,
-            0,
-            0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.NONE,
-            new Insets(0, 20, 5, 0),
-            0,
-            0));
-    puIncomeBonusLabel.setVisible(false);
 
-    // Add players in the order they were defined in the XML
+    // Add players in the order they were defined in the XML; their income is set with the game's
+    // options
     for (final GamePlayer player : players) {
       final PlayerSelectorRow selector =
           new PlayerSelectorRow(
@@ -255,24 +209,12 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
               playersEnablementListing,
               data.getAllianceTracker().getAlliancesPlayerIsIn(player),
               this,
-              data.getProperties(),
               new PlayerTypes(HeadedPlayerTypes.getPlayerTypes()));
       playerRows.add(selector);
       if (!player.isHidden()) {
         selector.layout(++gridY, panel);
-        selector.setResourceModifiersVisible(false);
       }
     }
-
-    resourceModifiers.setAction(
-        SwingAction.of(
-            I18nEngineFramework.get().getText("startup.SetupPanel.resourceModifiers.Lbl"),
-            e -> {
-              final boolean isVisible = incomeLabel.isVisible();
-              incomeLabel.setVisible(!isVisible);
-              puIncomeBonusLabel.setVisible(!isVisible);
-              playerRows.forEach(row -> row.setResourceModifiersVisible(!isVisible));
-            }));
 
     setAllTypes.addActionListener(
         e -> {
@@ -315,15 +257,15 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
             new Insets(0, 0, 22, 0),
             0,
             0));
-    // the table stays at the top left, a large window does not leave it floating in the middle
+    // the table stays at the top, centered across the width: nothing in it takes extra width
     panel.add(
         new JPanel(),
         new GridBagConstraints(
-            FILLER_COLUMN,
+            0,
             FILLER_ROW,
             1,
             1,
-            1,
+            0,
             1,
             GridBagConstraints.CENTER,
             GridBagConstraints.BOTH,
@@ -362,21 +304,17 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
     buttons.setBorder(BorderFactory.createEmptyBorder(0, -8, 0, 0));
     panel.add(buttons, BorderLayout.CENTER);
     // the buttons read the rows when clicked: a new layout refills the list
+    final Map<String, Runnable> playAlliance = new LinkedHashMap<>();
     for (final String alliance : getPlayableAlliances(allianceTracker)) {
-      final Set<String> members =
-          allianceTracker.getPlayersInAlliance(alliance).stream()
-              .map(GamePlayer::getName)
-              .collect(Collectors.toSet());
-      buttons.add(
-          newQuickSetupButton(
-              bundle.getText("startup.SetupPanel.quickSetup.PlayAs.Lbl", alliance),
-              () ->
-                  playerRows.forEach(
-                      row ->
-                          row.setQuickSetupType(
-                              members.contains(row.getPlayerName())
-                                  ? HeadedPlayerTypes.HUMAN_PLAYER.getLabel()
-                                  : PlayerTypes.PRO_AI.getLabel()))));
+      playAlliance.put(
+          bundle.getText("startup.SetupPanel.quickSetup.PlayAs.Lbl", alliance),
+          () -> playAgainstComputer(playerRows, allianceTracker, alliance));
+    }
+    if (playAlliance.size() > MAX_ALLIANCE_BUTTONS) {
+      // a row of buttons would grow wider than the screen
+      buttons.add(newAllianceList(playAlliance, bundle));
+    } else {
+      playAlliance.forEach((title, action) -> buttons.add(newQuickSetupButton(title, action)));
     }
     buttons.add(
         newQuickSetupButton(
@@ -385,6 +323,40 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
                 playerRows.forEach(
                     row -> row.setQuickSetupType(HeadedPlayerTypes.HUMAN_PLAYER.getLabel()))));
     return panel;
+  }
+
+  /** The alliance's nations to the player, the others to the computer. */
+  private static void playAgainstComputer(
+      final List<PlayerSelectorRow> playerRows,
+      final AllianceTracker allianceTracker,
+      final String alliance) {
+    final Set<String> members =
+        allianceTracker.getPlayersInAlliance(alliance).stream()
+            .map(GamePlayer::getName)
+            .collect(Collectors.toSet());
+    playerRows.forEach(
+        row ->
+            row.setQuickSetupType(
+                members.contains(row.getPlayerName())
+                    ? HeadedPlayerTypes.HUMAN_PLAYER.getLabel()
+                    : PlayerTypes.PRO_AI.getLabel()));
+  }
+
+  /** The alliances to play in a list; choosing one sets the players up at once. */
+  private static JComboBox<String> newAllianceList(
+      final Map<String, Runnable> playAlliance, final I18nResourceBundle bundle) {
+    final String prompt = bundle.getText("startup.SetupPanel.quickSetup.ChooseAlliance.Lbl");
+    final JComboBox<String> list = new JComboBox<>();
+    list.addItem(prompt);
+    playAlliance.keySet().forEach(list::addItem);
+    list.addActionListener(
+        e -> {
+          final Runnable action = playAlliance.get((String) list.getSelectedItem());
+          if (action != null) {
+            action.run();
+          }
+        });
+    return list;
   }
 
   /**

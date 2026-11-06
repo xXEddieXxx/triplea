@@ -12,9 +12,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.io.Serial;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -22,7 +19,6 @@ import javax.annotation.Nullable;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
@@ -31,8 +27,6 @@ import org.triplea.game.chat.ChatModel;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.SwingAction;
 import org.triplea.swing.SwingComponents;
-import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
-import org.triplea.swing.jpanel.GridBagConstraintsFill;
 import org.triplea.swing.jpanel.JPanelBuilder;
 
 /**
@@ -43,9 +37,6 @@ import org.triplea.swing.jpanel.JPanelBuilder;
 public class MainPanel extends JPanel {
   private static final long serialVersionUID = -5548760379892913464L;
   private static final Dimension initialSize = new Dimension(1000, 760);
-
-  /** The players' share of the middle's height; the game's options have the rest. */
-  private static final double PLAYERS_SHARE = 0.6;
 
   private final JButton playButton =
       new JButtonBuilder()
@@ -76,8 +67,6 @@ public class MainPanel extends JPanel {
   private final JPanel footer;
   private SetupPanel gameSetupPanel;
   private final GameSelectorPanel gameSelectorPanel;
-  // the game's options below the players, hidden with the game's column
-  private final HeightShare optionsShare;
 
   /**
    * MainPanel is the full contents of the 'mainFrame'. This panel represents the welcome screen and
@@ -94,16 +83,12 @@ public class MainPanel extends JPanel {
     playButton.addActionListener(e -> launchAction.accept(this));
     LookAndFeel.setPrimaryButtonStyle(playButton);
 
-    // the selected game in a column on the right: map picture, name, Change map, Load game
+    // the selected game in a column on the right: map picture, name, Change map, Load game, the
+    // game's options
     gameSelectorPanel.setBorder(
         BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 1, 0, 0, LookAndFeel.getSeparatorColor()),
             BorderFactory.createEmptyBorder(16, 16, 12, 16)));
-    final JComponent gameOptions = gameSelectorPanel.getOptionsPanel();
-    gameOptions.setBorder(
-        BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, LookAndFeel.getSeparatorColor()),
-            BorderFactory.createEmptyBorder(12, 16, 8, 16)));
     gameSetupPanelScroll.setBorder(BorderFactory.createEmptyBorder());
     SwingComponents.setScrollSpeed(gameSetupPanelScroll);
     chatSplit = new JSplitPane();
@@ -112,13 +97,9 @@ public class MainPanel extends JPanel {
     chatSplit.setOneTouchExpandable(false);
     chatSplit.setDividerSize(5);
 
-    // in the middle the players, below them the game's options; each a share of the height
-    final JPanel middle = new JPanel(new GridBagLayout());
-    middle.add(new HeightShare(setupArea), newShareConstraints(0, PLAYERS_SHARE));
-    optionsShare = new HeightShare(gameOptions);
-    middle.add(optionsShare, newShareConstraints(1, 1 - PLAYERS_SHARE));
+    // in the middle the players
     mainPanel = new JPanelBuilder().border(0).borderLayout().build();
-    mainPanel.add(middle, BorderLayout.CENTER);
+    mainPanel.add(setupArea, BorderLayout.CENTER);
     mainPanel.add(gameSelectorPanel, BorderLayout.EAST);
     setLayout(new BorderLayout());
 
@@ -145,14 +126,6 @@ public class MainPanel extends JPanel {
     add(barHolder, BorderLayout.NORTH);
     setPreferredSize(initialSize);
     updatePlayButtonState();
-  }
-
-  private static GridBagConstraints newShareConstraints(final int y, final double share) {
-    return new GridBagConstraintsBuilder(0, y)
-        .fill(GridBagConstraintsFill.BOTH)
-        .weightX(1.0)
-        .weightY(share)
-        .build();
   }
 
   private void addChat(final Component chatComponent) {
@@ -189,8 +162,6 @@ public class MainPanel extends JPanel {
       setupArea.add(gameSetupPanelScroll, BorderLayout.CENTER);
     }
     gameSelectorPanel.setVisible(!panel.isFullWindow());
-    // a hidden share gives its height to the visible one: the main menu fills the middle
-    optionsShare.setVisible(!panel.isFullWindow());
     footer.setVisible(!panel.isFullWindow());
     barHolder.removeAll();
     barHolder.setVisible(!panel.isFullWindow());
@@ -248,28 +219,5 @@ public class MainPanel extends JPanel {
   public void updatePlayButtonState() {
     SwingAction.invokeNowOrLater(
         () -> playButton.setEnabled(gameSetupPanel != null && gameSetupPanel.canGameStart()));
-  }
-
-  /**
-   * A part of the middle whose height is its share of the middle, not what its content would like:
-   * long lists of players or options scroll within their share.
-   */
-  private static final class HeightShare extends JPanel {
-    @Serial private static final long serialVersionUID = 3319404587102516251L;
-
-    HeightShare(final JComponent content) {
-      super(new BorderLayout());
-      add(content, BorderLayout.CENTER);
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-      return new Dimension(super.getPreferredSize().width, 0);
-    }
-
-    @Override
-    public Dimension getMinimumSize() {
-      return new Dimension(super.getMinimumSize().width, 0);
-    }
   }
 }

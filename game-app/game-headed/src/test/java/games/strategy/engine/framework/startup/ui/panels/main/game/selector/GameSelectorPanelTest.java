@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.properties.IEditableProperty;
+import games.strategy.engine.framework.I18nEngineFramework;
+import games.strategy.triplea.Properties;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.sonatype.goodies.prefs.memory.MemoryPreferences;
+import org.triplea.swing.IntTextField;
 
 /** In game-headed although the panel is in game-core: with the game client's look, as it shows. */
 final class GameSelectorPanelTest {
@@ -94,6 +97,46 @@ final class GameSelectorPanelTest {
     assertThat(checkBoxOf(panel.getOptionsPanel(), option.getName()).isSelected())
         .as("the screen shows what the game starts with")
         .isEqualTo(setLater);
+  }
+
+  @DisplayName("The options hold each nation's income, which the game starts with")
+  @Test
+  void optionsHoldTheIncomeOfEachNation() throws Exception {
+    final GameData game = TestMapGameData.REVISED.getGameData();
+    model.setGameData(game);
+    waitForEdt();
+    final Container incomePanel = givenIncomePanel();
+
+    // the first field of the table is the income of the first nation
+    componentsIn(incomePanel)
+        .filter(IntTextField.class::isInstance)
+        .map(IntTextField.class::cast)
+        .findFirst()
+        .orElseThrow()
+        .setValue(150);
+
+    assertThat(textsIn(incomePanel))
+        .as("one row per nation")
+        .contains("Germans", "Russians", "Americans");
+    assertThat(
+            game.getPlayerList().getPlayers().stream()
+                .filter(
+                    player -> Properties.getIncomePercentage(player, game.getProperties()) == 150))
+        .as("the field sets what its nation collects, of the 100 % each starts with")
+        .hasSize(1);
+  }
+
+  /** The table of incomes in the options, below the game's rules. */
+  private Container givenIncomePanel() {
+    final String title =
+        I18nEngineFramework.get().getText("startup.SetupPanel.resourceModifiers.Lbl");
+    return componentsIn(panel.getOptionsPanel())
+        .filter(JLabel.class::isInstance)
+        // a section heading is in capitals
+        .filter(label -> title.equalsIgnoreCase(((JLabel) label).getText()))
+        .map(Component::getParent)
+        .findFirst()
+        .orElseThrow();
   }
 
   @DisplayName("A joined game's host sets its options; a bot's host is asked to change them")

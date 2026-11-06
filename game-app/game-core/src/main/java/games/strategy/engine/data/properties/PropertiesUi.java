@@ -43,6 +43,8 @@ public class PropertiesUi extends JPanel {
   private static final int FILTER_THRESHOLD = 12;
 
   private final List<Row> rows = new ArrayList<>();
+  // a narrow column: one switch per line, each value's name above its editor
+  private final boolean narrow;
 
   public PropertiesUi(final GameProperties gameProperties, final boolean editable) {
     this(gameProperties.getEditableProperties(), editable);
@@ -50,7 +52,15 @@ public class PropertiesUi extends JPanel {
 
   public PropertiesUi(
       final List<? extends IEditableProperty<?>> properties, final boolean editable) {
+    this(properties, editable, false);
+  }
+
+  private PropertiesUi(
+      final List<? extends IEditableProperty<?>> properties,
+      final boolean editable,
+      final boolean narrow) {
     super(new GridBagLayout());
+    this.narrow = narrow;
     for (final IEditableProperty<?> property : properties) {
       rows.add(
           new Row(
@@ -59,6 +69,12 @@ public class PropertiesUi extends JPanel {
               editable ? property.getEditorComponent() : property.getViewComponent()));
     }
     layoutRows(rows);
+  }
+
+  /** The properties for a narrow side column: one switch per line, each value's name on top. */
+  public static PropertiesUi newNarrow(
+      final GameProperties gameProperties, final boolean editable) {
+    return new PropertiesUi(gameProperties.getEditableProperties(), editable, true);
   }
 
   private void layoutRows(final Collection<Row> visibleRows) {
@@ -72,13 +88,15 @@ public class PropertiesUi extends JPanel {
       if (bothKinds) {
         add(LookAndFeel.newSectionLabel("On / off"), newRowConstraints(y++, 0));
       }
-      add(newSwitchesPanel(switches), newRowConstraints(y++, 4));
+      add(newSwitchesPanel(switches, narrow ? 0 : MAX_WIDTH), newRowConstraints(y++, 4));
     }
     if (!values.isEmpty()) {
       if (bothKinds) {
         add(LookAndFeel.newSectionLabel("Values"), newRowConstraints(y++, 18));
       }
-      add(newValuesPanel(values), newRowConstraints(y++, 4));
+      add(
+          narrow ? newStackedValuesPanel(values) : newValuesPanel(values),
+          newRowConstraints(y++, 4));
     }
     // keeps the rows at the top when the panel is taller than they need
     add(
@@ -96,10 +114,10 @@ public class PropertiesUi extends JPanel {
         .build();
   }
 
-  private static JPanel newSwitchesPanel(final List<Row> switches) {
+  private static JPanel newSwitchesPanel(final List<Row> switches, final int maxWidth) {
     final JPanel panel = new JPanel(new GridLayout(0, 2, 24, 2));
     switches.forEach(row -> panel.add(row.editor));
-    if (panel.getPreferredSize().width > MAX_WIDTH) {
+    if (panel.getPreferredSize().width > maxWidth) {
       panel.setLayout(new GridLayout(0, 1, 0, 2));
     }
     return panel;
@@ -128,6 +146,29 @@ public class PropertiesUi extends JPanel {
     return panel;
   }
 
+  /** Each value's name above its editor, for a column too narrow for both side by side. */
+  private static JPanel newStackedValuesPanel(final List<Row> values) {
+    final JPanel panel = new JPanel(new GridBagLayout());
+    int y = 0;
+    for (final Row row : values) {
+      panel.add(
+          row.label,
+          new GridBagConstraintsBuilder(0, y)
+              .weightX(1)
+              .anchor(GridBagConstraintsAnchor.WEST)
+              .insets(y == 0 ? 0 : 10, 0, 0, 0)
+              .build());
+      panel.add(
+          row.editor,
+          new GridBagConstraintsBuilder(0, y + 1)
+              .anchor(GridBagConstraintsAnchor.WEST)
+              .insets(3, 0, 0, 0)
+              .build());
+      y += 2;
+    }
+    return panel;
+  }
+
   /**
    * Returns the properties in a scroll pane of at most the size of a dialog, with a filter field
    * above them when there are many.
@@ -140,8 +181,16 @@ public class PropertiesUi extends JPanel {
         new Dimension(
             Math.min(preferred.width + scrollBarWidth, MAX_WIDTH),
             Math.min(preferred.height, MAX_HEIGHT)));
+    return withFilter(propertiesUi, scroll);
+  }
+
+  /**
+   * The view of the properties, eg a scroll pane holding them, with a filter field above it when
+   * there are many.
+   */
+  public static JComponent withFilter(final PropertiesUi propertiesUi, final JComponent view) {
     if (propertiesUi.rows.size() < FILTER_THRESHOLD) {
-      return scroll;
+      return view;
     }
     final JTextField filterField = new JTextField();
     filterField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Filter options");
@@ -169,7 +218,7 @@ public class PropertiesUi extends JPanel {
         .borderLayout()
         .addNorth(
             new JPanelBuilder().border(0, 0, 10, 0).borderLayout().addCenter(filterField).build())
-        .addCenter(scroll)
+        .addCenter(view)
         .build();
   }
 

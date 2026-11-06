@@ -245,7 +245,7 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
 
   RELATIONSHIP_COLOR_SCHEME_BINDING(
       "Relationship Colors",
-      SettingType.LOOK_AND_FEEL,
+      SettingGroup.LOOK,
 """
 War/allied/neutral colors in the politics panel and status bar.
 Color blind friendly uses orange/blue instead of red/green.""") {
@@ -393,30 +393,30 @@ Color blind friendly uses orange/blue instead of red/green.""") {
   },
 
   SHOW_BATTLES_WHEN_OBSERVING_BINDING(
-        "Show battles when I only watch",
-        SettingGroup.BATTLES,
-        "Open the battle window also in games you only observe") {
+      "Show battles when I only watch",
+      SettingGroup.BATTLES,
+      "Open the battle window also in games you only observe") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
-        return booleanCheckBox(ClientSetting.showBattlesWhenObserving);
+      return booleanCheckBox(ClientSetting.showBattlesWhenObserving);
     }
   },
 
   USE_BOUNDED_CONTEXT_BATTLE_CALC(
-      "Use bounded-context battle calculator (Beta)",
-      SettingType.TESTING,
-      "Toggles the in-development engine-free battle odds calculator. Off by default; still under "
-          + "development. Takes effect the next time the battle calculator is opened.") {
+      "Battle calculator: new calculator (beta)",
+      SettingGroup.BATTLE_CALCULATOR,
+      "Use the new battle calculator that is still in development. Applies the next time the"
+          + " battle calculator opens.") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
-      return booleanRadioButtons(ClientSetting.useBoundedContextBattleCalc);
+      return booleanCheckBox(ClientSetting.useBoundedContextBattleCalc);
     }
   },
 
-  DO_NOT_REDRAW_MAP(
-      "Do Not Redraw Map",
-      SettingType.TESTING,
-      "Toggles whether to completely redraw the map when a technology is discovered. Default is fully redraw. No redraw makes the \"flash\" you see disappear when a tech is added.") {
+  BATTLE_CALC_SIMULATION_COUNT_DICE_BINDING(
+      "Battle calculator: runs in dice games",
+      SettingGroup.BATTLE_CALCULATOR,
+      "How many battles the calculator plays through. More is more exact, but slower.") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return intValueRange(ClientSetting.battleCalcSimulationCountDice, 10, 100_000);

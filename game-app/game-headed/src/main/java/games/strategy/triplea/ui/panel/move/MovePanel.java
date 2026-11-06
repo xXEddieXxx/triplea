@@ -116,6 +116,9 @@ public class MovePanel extends AbstractMovePanel {
   @Getter(onMethod_ = @Override)
   private final CollapsiblePanel unitScrollerPanel;
 
+  /** The unit scroller's buttons, which the game window shows over the map. */
+  @Getter private final JPanel unitScrollerButtons;
+
   private boolean isHighlightingUnits;
 
   private final UnitSelectionListener unitSelectionListener =
@@ -1032,6 +1035,7 @@ public class MovePanel extends AbstractMovePanel {
 
     unitScroller = new UnitScroller(getData(), getMap(), this::isVisible);
     unitScrollerPanel = unitScroller.build();
+    unitScrollerButtons = unitScroller.buildButtons();
     unitScrollerPanel.setVisible(false);
     registerKeyBindings(frame);
   }

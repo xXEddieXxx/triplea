@@ -6,6 +6,7 @@ import games.strategy.engine.data.Unit;
 import games.strategy.engine.player.PlayerBridge;
 import games.strategy.triplea.delegate.UndoableMove;
 import games.strategy.triplea.delegate.remote.IAbstractMoveDelegate;
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.io.Serial;
 import java.util.ArrayList;
@@ -14,7 +15,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JOptionPane;
@@ -263,26 +263,28 @@ public abstract class AbstractMovePanel extends ActionPanel {
 
   protected abstract boolean setCancelButton();
 
+  /**
+   * The title at the top and the moves made below it; the buttons that go on (Cancel, Undo All and
+   * Done) are in the game window's button bar.
+   */
   private JPanel movedUnitsPanel(final GamePlayer gamePlayer, final String actionLabel) {
-    final JPanel movedUnitsPanel = new JPanel();
-    movedUnitsPanel.setLayout(new BoxLayout(movedUnitsPanel, BoxLayout.Y_AXIS));
-
+    final JPanel top = new JPanel();
+    top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
     this.actionLabel.setText(gamePlayer.getName() + actionLabel);
-    movedUnitsPanel.add(SwingComponents.leftBox(this.actionLabel));
-
-    final JPanel buttonsPanel = new JPanel();
-    if (setCancelButton()) {
-      buttonsPanel.add(cancelMoveButton);
-    }
-    buttonsPanel.add(doneButton);
-    buttonsPanel.add(undoAllButton);
-    movedUnitsPanel.add(buttonsPanel);
-
+    top.add(SwingComponents.leftBox(this.actionLabel));
     // Add any additional buttons on their own lines, since their text may be
     // arbitrarily long.
-    getAdditionalButtons().forEach(movedUnitsPanel::add);
-    movedUnitsPanel.add(undoableMovesPanel);
-    movedUnitsPanel.add(Box.createGlue());
+    getAdditionalButtons().forEach(top::add);
+
+    if (setCancelButton()) {
+      showButtons(cancelMoveButton, undoAllButton, doneButton);
+    } else {
+      showButtons(undoAllButton, doneButton);
+    }
+
+    final JPanel movedUnitsPanel = new JPanel(new BorderLayout(0, 6));
+    movedUnitsPanel.add(top, BorderLayout.NORTH);
+    movedUnitsPanel.add(undoableMovesPanel, BorderLayout.CENTER);
     return movedUnitsPanel;
   }
 

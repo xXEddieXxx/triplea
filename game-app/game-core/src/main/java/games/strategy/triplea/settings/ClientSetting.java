@@ -267,10 +267,14 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new BooleanClientSetting("UNIT_SCROLLER_HIGHLIGHT_TERRITORY", true);
 
   public static final ClientSetting<Boolean> unitScrollerCollapsed =
-      new BooleanClientSetting("UNIT_SCROLLER_COLLAPSED", false);
+      new BooleanClientSetting("UNIT_SCROLLER_COLLAPSED", true);
 
   public static final ClientSetting<Boolean> placementsCollapsed =
-      new BooleanClientSetting("PLACEMENTS_COLLAPSED", false);
+      new BooleanClientSetting("PLACEMENTS_COLLAPSED", true);
+
+  /** The title of the game window's side tab the player chose last, eg "Players". */
+  public static final ClientSetting<String> gameSideTab =
+      new StringClientSetting("GAME_SIDE_TAB", "Territory");
 
   public static final ClientSetting<String> emailProvider =
       new StringClientSetting("EMAIL_PROVIDER");

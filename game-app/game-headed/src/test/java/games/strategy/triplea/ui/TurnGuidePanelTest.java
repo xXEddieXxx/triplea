@@ -9,8 +9,10 @@ import games.strategy.engine.data.GamePlayer;
 import games.strategy.triplea.image.FlagIconImageFactory;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -86,13 +88,34 @@ final class TurnGuidePanelTest {
     assertThat(texts).as("the hint is hidden").containsExactly("Round 3", "End Round");
   }
 
+  @DisplayName("Clicking the player's flag shows that player's capital")
+  @Test
+  void flagShowsTheCapital() throws Exception {
+    final GamePlayer germans = givenTurnOf("Germans");
+    when(uiContext.isCurrentPlayerRemote()).thenReturn(false);
+    final List<GamePlayer> shownCapitals = new ArrayList<>();
+    final TurnGuidePanel turnGuidePanel =
+        new TurnGuidePanel(uiContext, new JPanel(), new JPanel(), shownCapitals::add);
+    whenStepIsShownIn(turnGuidePanel, PURCHASE_HINT, "Purchase Units", germans);
+
+    final JLabel flag = turnLabelOf(turnGuidePanel);
+    Arrays.stream(flag.getMouseListeners())
+        .forEach(
+            listener ->
+                listener.mouseClicked(
+                    new MouseEvent(flag, MouseEvent.MOUSE_CLICKED, 0, 0, 1, 1, 1, false)));
+
+    assertThat(shownCapitals).as("the player whose turn shows").containsExactly(germans);
+  }
+
   @DisplayName("The bar shows the window's tools from the start, before the first step")
   @Test
   void toolsShowBeforeTheFirstStep() {
     final JButton menu = new JButton("Menu");
     final JButton history = new JButton("History");
 
-    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, history, menu);
+    final TurnGuidePanel turnGuidePanel =
+        new TurnGuidePanel(uiContext, history, menu, player -> {});
     turnGuidePanel.setSize(1000, 80);
     layOut(turnGuidePanel);
 
@@ -115,7 +138,7 @@ final class TurnGuidePanelTest {
     final CountDownLatch flagLoaded = new CountDownLatch(1);
     givenSlowFlag(flagRequested, flagLoaded);
     when(uiContext.isCurrentPlayerRemote()).thenReturn(false);
-    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, new JPanel(), new JPanel());
+    final TurnGuidePanel turnGuidePanel = newPanel();
     final Thread purchase =
         new Thread(
             () ->
@@ -156,10 +179,41 @@ final class TurnGuidePanelTest {
   private List<String> whenStepIsShown(
       final String phaseHint, final String stepDisplayName, @Nullable final GamePlayer player)
       throws InterruptedException, InvocationTargetException {
-    final TurnGuidePanel turnGuidePanel = new TurnGuidePanel(uiContext, new JPanel(), new JPanel());
+    return visibleTexts(whenStepIsShownIn(newPanel(), phaseHint, stepDisplayName, player));
+  }
+
+  private TurnGuidePanel newPanel() {
+    return new TurnGuidePanel(uiContext, new JPanel(), new JPanel(), player -> {});
+  }
+
+  private static TurnGuidePanel whenStepIsShownIn(
+      final TurnGuidePanel turnGuidePanel,
+      final String phaseHint,
+      final String stepDisplayName,
+      @Nullable final GamePlayer player)
+      throws InterruptedException, InvocationTargetException {
     turnGuidePanel.showStep(3, phaseHint, stepDisplayName, player);
     SwingUtilities.invokeAndWait(() -> {}); // the guide updates itself on the EDT
-    return visibleTexts(turnGuidePanel);
+    return turnGuidePanel;
+  }
+
+  /** The label of the player and round, which carries the player's flag. */
+  private static JLabel turnLabelOf(final Container container) {
+    return allComponents(container)
+        .filter(JLabel.class::isInstance)
+        .map(JLabel.class::cast)
+        .filter(label -> label.getText() != null && label.getText().contains("Round"))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static Stream<Component> allComponents(final Container container) {
+    return Arrays.stream(container.getComponents())
+        .flatMap(
+            component ->
+                component instanceof Container child
+                    ? Stream.concat(Stream.of(component), allComponents(child))
+                    : Stream.of(component));
   }
 
   private static void layOut(final Container container) {

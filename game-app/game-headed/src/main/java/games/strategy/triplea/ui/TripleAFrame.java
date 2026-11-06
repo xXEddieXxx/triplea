@@ -78,6 +78,8 @@ import games.strategy.triplea.ui.history.HistoryPanel;
 import games.strategy.triplea.ui.menubar.GameToolBar;
 import games.strategy.triplea.ui.panel.move.MovePanel;
 import games.strategy.triplea.ui.panels.map.MapPanel;
+import games.strategy.triplea.ui.panels.map.MapPanel.AnimationDuration;
+import games.strategy.triplea.ui.panels.map.MapPanel.HighlightDelay;
 import games.strategy.triplea.util.TuvCostsCalculator;
 import games.strategy.ui.ImageScrollModel;
 import games.strategy.ui.ImageScrollerSmallView;
@@ -99,22 +101,28 @@ import java.awt.HeadlessException;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.KeyboardFocusManager;
+import java.awt.Point;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.awt.event.HierarchyBoundsAdapter;
+import java.awt.event.HierarchyEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serial;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -142,6 +150,7 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -184,8 +193,6 @@ import org.triplea.util.Tuple;
 @Slf4j
 public final class TripleAFrame extends JFrame implements QuitHandler {
   private static final long serialVersionUID = 7640069668264418976L;
-  // the name of the Actions tab's content while the history shows
-  private static final String BACK_TO_GAME_TAB = "back to game";
 
   @Getter private final LocalPlayers localPlayers;
   private final GameData data;
@@ -198,6 +205,8 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
   private final JPanel gameMainPanel = new JPanel();
   private final JPanel rightHandSidePanel = new JPanel();
   private final JTabbedPane tabsPanel = new JTabbedPane();
+  // below the tabs: the actions, or in the history the way back to the game
+  private final JPanel actionArea = new JPanel(new BorderLayout());
   private final StatPanel statsPanel;
   private final TechnologyPanel technologyPanel;
   private final EconomyPanel economyPanel;
@@ -249,7 +258,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
 
         private void hideEditMode() {
           if (tabsPanel.getSelectedComponent() == editPanel) {
-            tabsPanel.setSelectedIndex(0);
+            selectChosenTab();
           }
           tabsPanel.remove(editPanel);
           editModeButtonModel.setSelected(false);
@@ -392,27 +401,60 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     smallView.addFocusListener(focusToMapPanelFocusListener);
     tabsPanel.addFocusListener(focusToMapPanelFocusListener);
     // the turn across the top, over map and side panel
-    turnGuidePanel = new TurnGuidePanel(uiContext, GameToolBar.newGameMenus(this), gameToolBar);
+    turnGuidePanel =
+        new TurnGuidePanel(
+            uiContext, GameToolBar.newGameMenus(this), gameToolBar, this::showCapital);
     gameMainPanel.add(turnGuidePanel, BorderLayout.NORTH);
-    rightHandSidePanel.add(smallView, BorderLayout.NORTH);
+    // the small map centered at the top, with some room around it
+    final JPanel smallMap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    // a line between the small map and the rest of the side panel
+    smallMap.setBorder(
+        BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, LookAndFeel.getSeparatorColor()),
+            BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+    smallMap.add(smallView);
     tabsPanel.setBorder(null);
     // all tabs in view, in as many rows as they need; a row keeps its place when one of its tabs
     // is chosen (Swing would move it next to the content)
     tabsPanel.putClientProperty(FlatClientProperties.STYLE, "rotateTabRuns: false");
-    rightHandSidePanel.add(tabsPanel, BorderLayout.CENTER);
 
     final MovePanel movePanel = new MovePanel(this);
     actionButtonsPanel = new ActionButtonsPanel(movePanel, this);
+    floatOverMap(movePanel.getUnitScrollerButtons(), movePanel.getUnitScrollerPanel());
 
     final CollapsiblePanel placementsPanel =
         new PlacementUnitsCollapsiblePanel(data, uiContext).getPanel();
+    // below the small map the buttons that go on (Buy, Done, ...), at the same place in every
+    // phase; below them what the phase shows (the moves, the units to buy, ...), and at the bottom
+    // the tabs to look things up
+    final JPanel buttonBar = actionButtonsPanel.getButtonBar();
+    buttonBar.setBorder(BorderFactory.createEmptyBorder(10, 12, 8, 10));
     rightHandSidePanel.add(
-        new JPanelBuilder()
-            .borderLayout()
-            .addNorth(placementsPanel)
-            .addSouth(movePanel.getUnitScrollerPanel())
-            .build(),
-        BorderLayout.SOUTH);
+        new JPanelBuilder().borderLayout().addNorth(smallMap).addSouth(buttonBar).build(),
+        BorderLayout.NORTH);
+    showActionsInActionArea();
+    tabsPanel.setBorder(
+        BorderFactory.createMatteBorder(1, 0, 0, 0, LookAndFeel.getSeparatorColor()));
+    final JSplitPane actionsAndTabs =
+        new JSplitPane(
+            JSplitPane.VERTICAL_SPLIT,
+            new JPanelBuilder()
+                .borderLayout()
+                .addCenter(actionArea)
+                .addSouth(
+                    new JPanelBuilder()
+                        .borderLayout()
+                        .addNorth(placementsPanel)
+                        .addSouth(movePanel.getUnitScrollerPanel())
+                        .build())
+                .build(),
+            tabsPanel);
+    actionsAndTabs.setBorder(null);
+    actionsAndTabs.setContinuousLayout(true);
+    actionsAndTabs.setDividerSize(6);
+    // more of the room for the phase, eg the units to buy
+    actionsAndTabs.setResizeWeight(0.6);
+    rightHandSidePanel.add(actionsAndTabs, BorderLayout.CENTER);
 
     final ArrowKeyScroller arrowKeyScroller = new ArrowKeyScroller();
     mapPanel.addKeyListener(arrowKeyScroller);
@@ -451,6 +493,14 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
             editPanel.setActive(false);
           }
         });
+    // a tab the player clicks stays chosen, also in the next games
+    tabsPanel.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mouseReleased(final MouseEvent e) {
+            rememberChosenTab();
+          }
+        });
 
     // as wide as the small map, but wide enough for readable tabs and lists on large screens
     final int preferredRightHandSidePanelWidth = 360;
@@ -475,6 +525,19 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     gameCenterPanel.setResizeWeight(1.0);
     gameMainPanel.add(gameCenterPanel, BorderLayout.CENTER);
     gameCenterPanel.resetToPreferredSizes();
+    // the map prefers its full size, so the split pane would leave the side panel its minimum
+    // width; once the window has its size, the side panel gets the width it prefers
+    gameCenterPanel.addComponentListener(
+        new ComponentAdapter() {
+          @Override
+          public void componentResized(final ComponentEvent e) {
+            gameCenterPanel.setDividerLocation(
+                gameCenterPanel.getWidth()
+                    - rightHandSidePanel.getPreferredSize().width
+                    - gameCenterPanel.getDividerSize());
+            gameCenterPanel.removeComponentListener(this);
+          }
+        });
     // set up the edit mode overlay text
     this.setGlassPane(
         new JComponent() {
@@ -558,14 +621,12 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
                 mapPanel.getScale() - (ClientSetting.mapZoomFactor.getValueOrThrow() / 100f)));
   }
 
-  private void addTabs(HistoryDetailsPanel historyDetailPanel) {
+  /** The tabs to look things up; the actions are below them, in the action area. */
+  private void addTabs(final @Nullable HistoryDetailsPanel historyDetailPanel) {
     if (historyDetailPanel != null) {
-      // no actions while the history shows; the tab stays, with the way back to the game
-      addTab("Actions", newBackToGamePanel(), KeyCode.C);
       tabsPanel.add("History", historyDetailPanel);
-    } else {
-      addTab("Actions", actionButtonsPanel, KeyCode.C);
     }
+    addTab("Territory", territoryDetailPanel, KeyCode.T);
     addTab("Players", statsPanel, KeyCode.P);
     if (!TechAdvance.getTechAdvances(data.getTechnologyFrontier(), null).isEmpty()) {
       addTab("Technology", technologyPanel, KeyCode.Y);
@@ -575,39 +636,123 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
       String objectivePanelName = new ObjectiveProperties(uiContext.getResourceLoader()).getName();
       addTab(objectivePanelName, objectivePanel, KeyCode.O);
     }
-    addTab("Territory", territoryDetailPanel, KeyCode.T);
+    selectChosenTab();
     if (mapPanel.getEditMode()) {
       showEditMode();
     }
   }
 
+  private void showActionsInActionArea() {
+    showInActionArea(actionButtonsPanel);
+    actionButtonsPanel.showButtonsOfCurrentPhase();
+  }
+
   /**
-   * The Actions tab while the history shows: what the player looks at, and a button back to the
-   * game, where the actions are; the game goes on meanwhile.
+   * In the history, the action area says what the player looks at, and the button bar leads back to
+   * the game, where the actions are; the game goes on meanwhile.
    */
-  private JComponent newBackToGamePanel() {
-    final JButton back = new JButton(showGameAction);
-    back.setText("Back to the game");
-    LookAndFeel.setPrimaryButtonStyle(back);
+  private void showBackToGameInActionArea() {
     final WrappingText note =
         new WrappingText(
             "You are looking at the history of the game. Your actions are in the current game,"
                 + " which goes on meanwhile.");
-    final JPanel panel = new JPanel(new BorderLayout(0, 12));
-    panel.setName(BACK_TO_GAME_TAB);
-    panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
-    panel.add(note, BorderLayout.NORTH);
-    final JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-    buttonRow.add(back);
-    panel.add(buttonRow, BorderLayout.CENTER);
-    return panel;
+    note.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+    showInActionArea(note);
+    final JButton back = new JButton(showGameAction);
+    back.setText("Back to the game");
+    LookAndFeel.setPrimaryButtonStyle(back);
+    actionButtonsPanel.showInButtonBar(back);
   }
 
-  /** Removes the way back to the game, which the actions replace. */
-  private void removeBackToGameTab() {
-    Arrays.stream(tabsPanel.getComponents())
-        .filter(component -> BACK_TO_GAME_TAB.equals(component.getName()))
-        .forEach(tabsPanel::remove);
+  private void showInActionArea(final JComponent content) {
+    actionArea.removeAll();
+    actionArea.add(content, BorderLayout.CENTER);
+    actionArea.revalidate();
+    actionArea.repaint();
+  }
+
+  /**
+   * Shows the buttons over the bottom right corner of the map, in a raised card, while the panel
+   * they belong to is shown, eg the unit scroller's buttons in the move phases. The map draws over
+   * its own children, so they float in the window's layered pane, kept at the map's corner.
+   */
+  private void floatOverMap(final JComponent buttons, final Component shownWith) {
+    LookAndFeel.setCardStyle(buttons);
+    buttons.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+    getLayeredPane().add(buttons, JLayeredPane.PALETTE_LAYER);
+    final Runnable place =
+        () -> {
+          final boolean show = shownWith.isVisible() && mapPanel.isShowing();
+          buttons.setVisible(show);
+          if (show) {
+            final Dimension size = buttons.getPreferredSize();
+            final int margin = 12;
+            final Point corner =
+                SwingUtilities.convertPoint(
+                    mapPanel,
+                    mapPanel.getWidth() - size.width - margin,
+                    mapPanel.getHeight() - size.height - margin,
+                    getLayeredPane());
+            buttons.setBounds(corner.x, corner.y, size.width, size.height);
+          }
+        };
+    final ComponentAdapter placeOnChange =
+        new ComponentAdapter() {
+          @Override
+          public void componentResized(final ComponentEvent e) {
+            place.run();
+          }
+
+          @Override
+          public void componentMoved(final ComponentEvent e) {
+            place.run();
+          }
+
+          @Override
+          public void componentShown(final ComponentEvent e) {
+            place.run();
+          }
+
+          @Override
+          public void componentHidden(final ComponentEvent e) {
+            place.run();
+          }
+        };
+    shownWith.addComponentListener(placeOnChange);
+    mapPanel.addComponentListener(placeOnChange);
+    // the map moves with its ancestors, eg when the history opens beside it
+    mapPanel.addHierarchyBoundsListener(
+        new HierarchyBoundsAdapter() {
+          @Override
+          public void ancestorMoved(final HierarchyEvent e) {
+            place.run();
+          }
+
+          @Override
+          public void ancestorResized(final HierarchyEvent e) {
+            place.run();
+          }
+        });
+    mapPanel.addHierarchyListener(
+        e -> {
+          if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) {
+            place.run();
+          }
+        });
+  }
+
+  /** Centers the map on the player's capital and flashes it a few times, if the player has one. */
+  private void showCapital(final GamePlayer player) {
+    final GameData data = game.getData();
+    final Optional<Territory> capital;
+    try (GameData.Unlocker ignored = data.acquireReadLock()) {
+      capital =
+          TerritoryAttachment.getFirstOwnedCapitalOrFirstUnownedCapital(player, data.getMap());
+    }
+    capital.ifPresent(
+        territory ->
+            mapPanel.highlightTerritory(
+                territory, AnimationDuration.STANDARD, HighlightDelay.SHORT_DELAY));
   }
 
   private void addTab(final String title, final Component component, final KeyCode hotkey) {
@@ -615,7 +760,33 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     SwingKeyBinding.addKeyBindingWithMetaAndCtrlMasks(
         this,
         hotkey,
-        () -> tabsPanel.setSelectedIndex(List.of(tabsPanel.getComponents()).indexOf(component)));
+        () -> {
+          tabsPanel.setSelectedIndex(List.of(tabsPanel.getComponents()).indexOf(component));
+          rememberChosenTab();
+        });
+  }
+
+  /** Chooses the tab the player chose last, by default Territory; else the first tab. */
+  private void selectChosenTab() {
+    final int index = tabsPanel.indexOfTab(ClientSetting.gameSideTab.getValueOrThrow());
+    if (tabsPanel.getTabCount() > 0) {
+      tabsPanel.setSelectedIndex(Math.max(index, 0));
+    }
+  }
+
+  /**
+   * Keeps the tab the player chose for the next games; not Edit or History, which the game opens
+   * itself.
+   */
+  private void rememberChosenTab() {
+    final int index = tabsPanel.getSelectedIndex();
+    if (index == -1) {
+      return;
+    }
+    final Component chosen = tabsPanel.getComponentAt(index);
+    if (chosen != editPanel && !(chosen instanceof HistoryDetailsPanel)) {
+      ClientSetting.gameSideTab.setValueAndFlush(tabsPanel.getTitleAt(index));
+    }
   }
 
   /** Stops the game and closes this frame window. */
@@ -783,6 +954,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           }
           setWidgetActivationOffEdt();
           addTabs(null);
+          showActionsInActionArea();
           actionButtonsPanel.getCurrent().ifPresent(actionPanel -> actionPanel.setActive(true));
           gameMainPanel.removeAll();
           gameMainPanel.setLayout(new BorderLayout());
@@ -844,6 +1016,8 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
 
                   tabsPanel.removeAll();
                   addTabs(historyDetailPanel);
+                  tabsPanel.setSelectedComponent(historyDetailPanel);
+                  showBackToGameInActionArea();
                   actionButtonsPanel
                       .getCurrent()
                       .ifPresent(actionPanel -> actionPanel.setActive(false));
@@ -2114,8 +2288,12 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
     getGlassPane().setVisible(true);
   }
 
+  /**
+   * Leaves the Edit tab for the tab the player chose; the actions, always below the tabs, work
+   * again once the Edit tab is not chosen.
+   */
   public void showActionPanelTab() {
-    tabsPanel.setSelectedIndex(0);
+    selectChosenTab();
   }
 
   public PoliticalActionAttachment getPoliticalActionChoice(
@@ -2305,27 +2483,15 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
                   if (inGame.compareAndSet(false, true)) {
                     showGameOffEdt();
                   }
-                  if (tabsPanel.indexOfComponent(actionButtonsPanel) == -1) {
-                    // the actions, in place of the way back to the game the history shows there
-                    removeBackToGameTab();
-                    tabsPanel.insertTab("Actions", null, actionButtonsPanel, null, 0);
-                  }
-                  tabsPanel.setSelectedIndex(0);
+                  // the actions, in place of the way back to the game the history shows there
+                  showActionsInActionArea();
                 }));
     actionButtonsPanel.changeToPickTerritoryAndUnits(player);
     final Tuple<Territory, Set<Unit>> territoryAndUnits =
         actionButtonsPanel.waitForPickTerritoryAndUnits(
             territoryChoices, unitChoices, unitsPerPick);
-    final int index = tabsPanel.indexOfComponent(actionButtonsPanel);
-    if (index != -1 && inHistory.get()) {
-      // the history keeps its Actions tab, with the way back to the game in place of the actions
-      Interruptibles.await(
-          () ->
-              SwingAction.invokeAndWait(
-                  () -> {
-                    tabsPanel.remove(index);
-                    tabsPanel.insertTab("Actions", null, newBackToGamePanel(), null, index);
-                  }));
+    if (inHistory.get()) {
+      Interruptibles.await(() -> SwingAction.invokeAndWait(this::showBackToGameInActionArea));
     }
     actionButtonsPanel.getCurrent().ifPresent(actionPanel -> actionPanel.setActive(false));
     return territoryAndUnits;

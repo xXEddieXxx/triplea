@@ -3,10 +3,14 @@ package games.strategy.triplea.ui;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import java.awt.BorderLayout;
+import java.awt.Cursor;
 import java.awt.GridBagLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.Serial;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
@@ -44,15 +48,31 @@ class TurnGuidePanel extends JPanel {
   private final WrappingText hintText = new WrappingText();
   // counts the steps to show; a step shown late, after a slow flag image, must not win
   private final AtomicLong stepsToShow = new AtomicLong();
+  // the player whose turn shows, set on the EDT
+  private @Nullable GamePlayer shownPlayer;
 
   /**
    * @param leadingTool At the left end of the bar, eg the history (which opens on the left), save
    *     and the settings.
    * @param tools The window's tools, eg the battle calculator, at the right end of the bar.
+   * @param showCapital Shows the player's capital on the map, when the player's flag is clicked.
    */
-  TurnGuidePanel(final UiContext uiContext, final JComponent leadingTool, final JComponent tools) {
+  TurnGuidePanel(
+      final UiContext uiContext,
+      final JComponent leadingTool,
+      final JComponent tools,
+      final Consumer<GamePlayer> showCapital) {
     super(new BorderLayout(32, 0));
     this.uiContext = uiContext;
+    turnLabel.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mouseClicked(final MouseEvent e) {
+            if (shownPlayer != null) {
+              showCapital.accept(shownPlayer);
+            }
+          }
+        });
     hintText.setForeground(LookAndFeel.getSecondaryTextColor());
     setBorder(
         BorderFactory.createCompoundBorder(
@@ -114,6 +134,12 @@ class TurnGuidePanel extends JPanel {
           }
           turnLabel.setText(turnText);
           turnLabel.setIcon(flag);
+          shownPlayer = hasPlayer ? player : null;
+          turnLabel.setToolTipText(hasPlayer ? "Show " + player.getName() + "'s capital" : null);
+          turnLabel.setCursor(
+              hasPlayer
+                  ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                  : Cursor.getDefaultCursor());
           phaseLabel.setText(stepDisplayName);
           hintText.setText(hint);
           hintText.setVisible(!hint.isEmpty());

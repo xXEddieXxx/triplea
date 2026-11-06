@@ -533,7 +533,7 @@ Key classes by functional area:
 ### Unit Scroller (`unit/scroller/`, 5 files)
 
 Navigation widget that helps players "scroll through" units that haven't moved yet:
-- **`UnitScroller`** — Previous/Next buttons, territory icon, skip/sleep functionality
+- **`UnitScroller`** — territory icon and the units that can still move (`build`), with the Previous/Next, skip and wake all buttons apart (`buildButtons`), skip/sleep functionality
 - **`UnitScrollerModel`** — Tracks unmoved units across combat and non-combat phases
 - **`UnitScrollerIcon`**, **`AvatarPanelFactory`**, **`AvatarCoordinateCalculator`** — Icon rendering
 

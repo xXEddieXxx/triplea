@@ -11,7 +11,6 @@ import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.ui.MouseDetails;
 import games.strategy.triplea.ui.panels.map.MapPanel;
 import games.strategy.triplea.ui.panels.map.MapSelectionListener;
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,14 +55,15 @@ public class UnitScroller {
 
   private static final int HORIZONTAL_BUTTON_GAP = 2;
 
+  private static final String UNIT_SCROLLER_TOOLTIP =
+      "Go through your units that can still move this phase.";
   private static final String PREVIOUS_UNITS_TOOLTIP =
-      "Press ',' or click to see 'Previous' unmoved units.";
-  private static final String NEXT_UNITS_TOOLTIP =
-      "Press '.' or click to see 'Next' unmoved units.";
+      "Previous units that can still move (press ',')";
+  private static final String NEXT_UNITS_TOOLTIP = "Next units that can still move (press '.')";
   private static final String SKIP_UNITS_TOOLTIP =
-      "Press 'Space' or click to 'Skip' these unmoved units until next move phase.";
+      "Skip these units until the next move phase (press Space)";
   private static final String WAKE_ALL_TOOLTIP =
-      "Click to 'Alert' all skipped and sleeping units on the map.";
+      "Wake up all skipped and sleeping units, so the scroller shows them again";
 
   private Collection<Unit> skippedUnits = new HashSet<>();
   private final Collection<Unit> sleepingUnits = new HashSet<>();
@@ -242,8 +242,15 @@ public class UnitScroller {
 
     panel.add(selectUnitImagePanel);
     panel.add(territoryNameLabel);
-    panel.add(Box.createVerticalStrut(2));
+    panel.add(Box.createVerticalStrut(3));
+    return collapsiblePanel;
+  }
 
+  /**
+   * The buttons to go through the units that can still move: previous, wake all, skip and next; the
+   * game window shows them over the map, apart from the panel of {@link #build()}.
+   */
+  public JPanel buildButtons() {
     final JButton prevUnit = new JButton(UnitScrollerIcon.LEFT_ARROW.get());
     prevUnit.setToolTipText(PREVIOUS_UNITS_TOOLTIP);
     prevUnit.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -273,11 +280,8 @@ public class UnitScroller {
             .addHorizontalStrut(HORIZONTAL_BUTTON_GAP)
             .add(nextUnit)
             .build();
-    skipAndSleepPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-    panel.add(skipAndSleepPanel, BorderLayout.SOUTH);
-    panel.add(Box.createVerticalStrut(3));
-    return collapsiblePanel;
+    skipAndSleepPanel.setToolTipText(UNIT_SCROLLER_TOOLTIP);
+    return skipAndSleepPanel;
   }
 
   /**

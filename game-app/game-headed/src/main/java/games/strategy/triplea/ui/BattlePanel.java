@@ -18,6 +18,7 @@ import games.strategy.triplea.ui.panels.map.MapPanel;
 import games.strategy.ui.Util;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.GridLayout;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -25,10 +26,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import lombok.extern.slf4j.Slf4j;
@@ -125,10 +128,17 @@ public final class BattlePanel extends ActionPanel {
           removeAll();
           actionLabel.setText(gamePlayer.getName() + " battle");
           setLayout(new BorderLayout());
-          final JPanel panel = new JPanelBuilder().gridLayout(0, 1).add(actionLabel).build();
+          add(actionLabel, BorderLayout.NORTH);
+          final JPanel panel = new JPanel(new GridLayout(0, 1, 0, 4));
           battleListing.forEachBattle(
               (battleType, territory) -> addBattleActions(panel, territory, battleType));
-          add(panel, BorderLayout.NORTH);
+          // the battles scroll when there are more than fit, the title stays
+          final JPanel top = new JPanel(new BorderLayout());
+          top.add(panel, BorderLayout.NORTH);
+          final JScrollPane battles = new JScrollPane(top);
+          battles.setBorder(BorderFactory.createEmptyBorder());
+          battles.getVerticalScrollBar().setUnitIncrement(20);
+          add(battles, BorderLayout.CENTER);
           refresh.run();
         });
   }

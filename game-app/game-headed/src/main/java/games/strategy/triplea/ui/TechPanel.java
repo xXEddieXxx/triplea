@@ -230,9 +230,9 @@ class TechPanel extends ActionPanel {
           if (Properties.getWW2V3TechModel(getData().getProperties())) {
             final JButton doneButton = new JButton(justRollTech);
             LookAndFeel.setPrimaryButtonStyle(doneButton);
-            add(createButtonsPanel(new JButton(getTechTokenAction), doneButton));
+            showButtons(new JButton(getTechTokenAction), doneButton);
           } else {
-            add(createButtonsPanel(new JButton(getTechRollsAction), createDoneButton()));
+            showButtons(new JButton(getTechRollsAction), createDoneButton());
           }
         });
   }

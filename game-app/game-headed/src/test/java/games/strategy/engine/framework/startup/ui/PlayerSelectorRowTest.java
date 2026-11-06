@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
+import games.strategy.engine.data.properties.NumberProperty;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
+import games.strategy.triplea.Constants;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import org.sonatype.goodies.prefs.memory.MemoryPreferences;
 
 final class PlayerSelectorRowTest {
   private static final String HUMAN = HeadedPlayerTypes.HUMAN_PLAYER.getLabel();
+  private static final String FAST = PlayerTypes.FAST_AI.getLabel();
 
   @BeforeEach
   void initializeClientSettingPreferences() {
@@ -36,23 +39,23 @@ final class PlayerSelectorRowTest {
   void quickSetupKeepsPassiveNations() {
     final PlayerSelectorRow neutrals = givenRowOf("Neutrals", "DoesNothing");
 
-    neutrals.setQuickSetupType(HUMAN);
+    neutrals.setQuickSetupType(HUMAN, FAST);
 
     assertThat(neutrals.getPlayerType().getLabel())
         .as("the map author made this nation passive; a quick setup must not let it take turns")
         .isEqualTo(PlayerTypes.DOES_NOTHING_PLAYER_LABEL);
   }
 
-  @DisplayName("A quick setup keeps a nation that the map gives to the computer")
+  @DisplayName("A quick setup gives a nation the map gives to the computer the AI chosen for it")
   @Test
   void quickSetupKeepsComputerNations() {
     final PlayerSelectorRow minors = givenRowOf("Minor Axis", "AI");
 
-    minors.setQuickSetupType(HUMAN);
+    minors.setQuickSetupType(HUMAN, FAST);
 
     assertThat(minors.getPlayerType().getLabel())
-        .as("'Everyone human' must not give the turns of a computer nation to the players")
-        .isEqualTo(PlayerTypes.PRO_AI.getLabel());
+        .as("'Everyone human' must not give its turns to the players, nor undo the chosen Fast AI")
+        .isEqualTo(FAST);
   }
 
   @DisplayName("A quick setup sets the type of every other nation")
@@ -60,7 +63,7 @@ final class PlayerSelectorRowTest {
   void quickSetupSetsOtherNations() {
     final PlayerSelectorRow germans = givenRowOf("Germans", null);
 
-    germans.setQuickSetupType(PlayerTypes.PRO_AI.getLabel());
+    germans.setQuickSetupType(PlayerTypes.PRO_AI.getLabel(), FAST);
 
     assertThat(germans.getPlayerType().getLabel()).isEqualTo(PlayerTypes.PRO_AI.getLabel());
   }
@@ -70,7 +73,7 @@ final class PlayerSelectorRowTest {
   void quickSetupLeavesHiddenNations() {
     final PlayerSelectorRow hidden = givenHiddenRowOf("Hidden Axis", "AI");
 
-    hidden.setQuickSetupType(HUMAN);
+    hidden.setQuickSetupType(HUMAN, FAST);
 
     assertThat(hidden.getPlayerType().getLabel())
         .as("the other buttons that set all players leave hidden and disabled nations alone too")
@@ -80,16 +83,24 @@ final class PlayerSelectorRowTest {
   private static PlayerSelectorRow givenRowOf(
       final String name, @Nullable final String defaultType) {
     final GameData data = TestMapGameData.REVISED.getGameData();
-    return givenRowOf(new GamePlayer(name, false, false, defaultType, false, data));
+    return givenRowOf(new GamePlayer(name, false, false, defaultType, false, data), data);
   }
 
   private static PlayerSelectorRow givenHiddenRowOf(final String name, final String defaultType) {
     final GameData data = TestMapGameData.REVISED.getGameData();
-    return givenRowOf(new GamePlayer(name, false, false, defaultType, true, data));
+    return givenRowOf(new GamePlayer(name, false, false, defaultType, true, data), data);
   }
 
-  private static PlayerSelectorRow givenRowOf(final GamePlayer player) {
+  private static PlayerSelectorRow givenRowOf(final GamePlayer player, final GameData data) {
     final String name = player.getName();
+    // the row shows the income modifiers of its nation
+    data.getProperties()
+        .addPlayerProperty(
+            new NumberProperty(
+                Constants.getPropertyNameIncomePercentageFor(player), null, 999, 0, 100));
+    data.getProperties()
+        .addPlayerProperty(
+            new NumberProperty(Constants.getPropertyNamePuIncomeBonusFor(player), null, 999, 0, 0));
     return new PlayerSelectorRow(
         new ArrayList<>(),
         player,
@@ -98,6 +109,7 @@ final class PlayerSelectorRowTest {
         Map.of(name, true),
         List.of(),
         new LocalSetupPanel(new GameSelectorModel()),
+        data.getProperties(),
         new PlayerTypes(HeadedPlayerTypes.getPlayerTypes()));
   }
 }

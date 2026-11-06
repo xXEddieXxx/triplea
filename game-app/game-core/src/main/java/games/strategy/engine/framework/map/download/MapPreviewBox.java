@@ -24,7 +24,7 @@ import javax.swing.UIManager;
  * The picture fills the box, which has the size of its previews unless it is resized, eg to the
  * width of the details.
  */
-final class MapPreviewBox extends JComponent {
+public final class MapPreviewBox extends JComponent {
   @Serial private static final long serialVersionUID = -2410957263446307766L;
   private static final int ARC = 12;
   private static final int BAR_HEIGHT = 5;
@@ -37,15 +37,50 @@ final class MapPreviewBox extends JComponent {
   // the percent of the download, or -1 while the map does not download
   private int downloadPercent = -1;
 
-  MapPreviewBox(final MapPreviews previews, final String url) {
+  public MapPreviewBox(final MapPreviews previews, final String url) {
     this.previews = previews;
     this.url = url;
     icon = previews.get(url).orElse(null);
     resize(previews.getSize().getWidth());
   }
 
+  /**
+   * Paints a map's preview into the box as a preview box does, for a list's cell renderer, which
+   * cannot repaint itself: {@code loaded} runs when a preview that was not there yet arrives, eg to
+   * repaint the list. A neutral box while it loads or if there is none.
+   */
+  public static void paintPreview(
+      final Graphics2D graphics,
+      final MapPreviews previews,
+      final String url,
+      final Rectangle box,
+      final Runnable loaded) {
+    final Graphics2D g = (Graphics2D) graphics.create();
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    g.setRenderingHint(
+        RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    final Shape rounded = new RoundRectangle2D.Float(box.x, box.y, box.width, box.height, ARC, ARC);
+    g.setColor(Optional.ofNullable(UIManager.getColor("TextField.background")).orElse(Color.GRAY));
+    g.fill(rounded);
+    g.clip(rounded);
+    final Optional<ImageIcon> picture = previews.get(url);
+    if (picture.isPresent()) {
+      final Rectangle drawn =
+          pictureBounds(
+              picture.get().getIconWidth(),
+              picture.get().getIconHeight(),
+              previews.getDeviceScale(),
+              box);
+      g.drawImage(picture.get().getImage(), drawn.x, drawn.y, drawn.width, drawn.height, null);
+    } else if (!url.isEmpty() && !previews.hasFailed(url)) {
+      // loads once; later paints while it loads only wait for it
+      previews.load(url, arrived -> arrived.ifPresent(icon -> loaded.run()));
+    }
+    g.dispose();
+  }
+
   /** Gives the box the width, and the height that keeps the shape of its previews. */
-  void resize(final int width) {
+  public void resize(final int width) {
     final Dimension size =
         new Dimension(
             width, width * previews.getSize().getHeight() / previews.getSize().getWidth());

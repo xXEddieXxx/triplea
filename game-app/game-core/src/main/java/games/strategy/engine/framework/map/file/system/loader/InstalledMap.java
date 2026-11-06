@@ -1,6 +1,7 @@
 package games.strategy.engine.framework.map.file.system.loader;
 
 import games.strategy.triplea.ui.mapdata.MapData;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collection;
@@ -61,6 +62,15 @@ public class InstalledMap {
         .map(MapDescriptionYaml.MapGame::getGameName)
         .sorted()
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Returns the map's picture, "preview.png" in the map's folder next to its map.yml, as the maps
+   * repository has it; empty for a map without one.
+   */
+  public Optional<Path> findPreviewImage() {
+    final Path preview = mapDescriptionYaml.getYamlFileLocation().resolveSibling("preview.png");
+    return Files.isRegularFile(preview) ? Optional.of(preview) : Optional.empty();
   }
 
   /** Given a game name, returns the path to the XML file for that game. */

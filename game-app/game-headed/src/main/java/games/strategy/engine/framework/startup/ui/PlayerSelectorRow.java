@@ -1,9 +1,11 @@
 package games.strategy.engine.framework.startup.ui;
 
 import games.strategy.engine.data.GamePlayer;
+import games.strategy.engine.data.properties.GameProperties;
 import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.startup.launcher.local.PlayerCountrySelection;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
+import games.strategy.triplea.Constants;
 import java.awt.Container;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
@@ -13,6 +15,7 @@ import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 
 /**
@@ -25,6 +28,10 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
   private final String playerName;
   private final GamePlayer player;
   private final JComboBox<String> playerTypes;
+  private final JComponent incomePercentage;
+  private final JLabel incomePercentageLabel;
+  private final JComponent puIncomeBonus;
+  private final JLabel puIncomeBonusLabel;
   private boolean enabled = true;
   private final JLabel name;
   private JButton alliances;
@@ -40,6 +47,7 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
       final Map<String, Boolean> playersEnablementListing,
       final Collection<String> playerAlliances,
       final SetupPanel parent,
+      final GameProperties gameProperties,
       final PlayerTypes playerTypes) {
     this.playersThatMayBeDisabled = playersThatMayBeDisabled;
     this.parent = parent;
@@ -92,6 +100,16 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
                               && row.alliances.getText().equals(alliancesLabelText))
                   .forEach(row -> row.setPlayerType(HeadedPlayerTypes.HUMAN_PLAYER.getLabel())));
     }
+
+    incomePercentage =
+        gameProperties
+            .getPlayerPropertyOrThrow(Constants.getPropertyNameIncomePercentageFor(player))
+            .getEditorComponent();
+    incomePercentageLabel = new JLabel("%");
+
+    // also renames a bonus an old save has under its former name
+    puIncomeBonus = gameProperties.ensurePropertyPuIncomeBonusFor(player).getEditorComponent();
+    puIncomeBonusLabel = new JLabel("PUs");
 
     setWidgetActivation();
   }
@@ -158,6 +176,34 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
               0,
               0));
     }
+    gridx++;
+    container.add(incomePercentage, newIncomeCell(gridx++, row, 20));
+    container.add(incomePercentageLabel, newIncomeCell(gridx++, row, 5));
+    container.add(puIncomeBonus, newIncomeCell(gridx++, row, 20));
+    container.add(puIncomeBonusLabel, newIncomeCell(gridx, row, 5));
+  }
+
+  private static GridBagConstraints newIncomeCell(final int x, final int y, final int spaceLeft) {
+    return new GridBagConstraints(
+        x,
+        y,
+        1,
+        1,
+        0,
+        0,
+        GridBagConstraints.WEST,
+        GridBagConstraints.NONE,
+        new Insets(0, spaceLeft, 5, 5),
+        0,
+        0);
+  }
+
+  /** Shows or hides the nation's income fields, which the game options switch on. */
+  void setResourceModifiersVisible(final boolean isVisible) {
+    incomePercentage.setVisible(isVisible);
+    incomePercentageLabel.setVisible(isVisible);
+    puIncomeBonus.setVisible(isVisible);
+    puIncomeBonusLabel.setVisible(isVisible);
   }
 
   void setPlayerType(final String playerType) {
@@ -168,19 +214,39 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
 
   /**
    * Sets the type for a quick setup of all players at once. Players that do nothing by default, eg
-   * neutrals, keep doing nothing: a quick setup must not make them take turns.
+   * neutrals, keep doing nothing: a quick setup must not make them take turns. Nations the map
+   * gives to the computer get the computer player chosen, eg Fast AI, instead of a human. A nation
+   * the computer is to play and plays already keeps its AI, so AIs picked for single nations stay.
+   *
+   * @param computerType The computer player the player picked in the table, eg by "Set all to".
    */
-  void setQuickSetupType(final String playerType) {
+  void setQuickSetupType(final String playerType, final String computerType) {
     if (!enabled || player.isHidden()) {
       // like the other buttons that set all players, it leaves disabled and hidden players alone
       return;
     }
-    // the map gives these nations to the computer or to nobody, eg neutrals
-    if (player.isDefaultTypeDoesNothing() || player.isDefaultTypeAi()) {
+    if (player.isDefaultTypeDoesNothing()) {
       setDefaultPlayerType();
-    } else {
-      setPlayerType(playerType);
+      return;
     }
+    final String wanted = player.isDefaultTypeAi() ? computerType : playerType;
+    // a nation the computer plays already keeps its AI, eg Fast AI picked for it alone
+    if (!wanted.equals(computerType) || !isPlayedByComputer()) {
+      setPlayerType(wanted);
+    }
+  }
+
+  /** Whether the computer plays the nation, eg Fast AI, and not a person nor nobody. */
+  boolean isPlayedByComputer() {
+    final String label = getPlayerType().getLabel();
+    return !label.equals(HeadedPlayerTypes.HUMAN_PLAYER.getLabel())
+        && !label.equals(PlayerTypes.DOES_NOTHING_PLAYER_LABEL)
+        && !label.equals(PlayerTypes.PLAYER_TYPE_DEFAULT_LABEL);
+  }
+
+  /** Whether the map gives the nation to the computer, as its default. */
+  boolean isComputerByDefault() {
+    return player.isDefaultTypeAi();
   }
 
   void setDefaultPlayerType() {
@@ -214,6 +280,8 @@ public class PlayerSelectorRow implements PlayerCountrySelection {
       alliances.setEnabled(enabled);
     }
     enabledCheckBox.setEnabled(playersThatMayBeDisabled.contains(playerName));
+    incomePercentage.setEnabled(enabled);
+    puIncomeBonus.setEnabled(enabled);
     parent.fireListener();
   }
 }

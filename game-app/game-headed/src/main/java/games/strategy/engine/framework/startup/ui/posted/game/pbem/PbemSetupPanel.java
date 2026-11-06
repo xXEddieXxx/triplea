@@ -149,6 +149,11 @@ public class PbemSetupPanel extends SetupPanel implements Observer {
   }
 
   @Override
+  public boolean hasResourceModifiers() {
+    return true;
+  }
+
+  @Override
   public String getScreenTitle() {
     return getWayToPlayTitle("PlayByEmail");
   }

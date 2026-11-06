@@ -5,25 +5,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.properties.IEditableProperty;
 import games.strategy.engine.framework.I18nEngineFramework;
-import games.strategy.triplea.Properties;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
 import java.awt.Container;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.sonatype.goodies.prefs.memory.MemoryPreferences;
-import org.triplea.swing.IntTextField;
 
 /** In game-headed although the panel is in game-core: with the game client's look, as it shows. */
 final class GameSelectorPanelTest {
@@ -99,44 +99,54 @@ final class GameSelectorPanelTest {
         .isEqualTo(setLater);
   }
 
-  @DisplayName("The options hold each nation's income, which the game starts with")
+  @DisplayName("Resource Modifiers in the options switches the income fields of the nations on")
   @Test
-  void optionsHoldTheIncomeOfEachNation() throws Exception {
-    final GameData game = TestMapGameData.REVISED.getGameData();
-    model.setGameData(game);
+  void resourceModifiersSwitchShowsTheIncomeFields() throws Exception {
+    model.setGameData(TestMapGameData.REVISED.getGameData());
     waitForEdt();
-    final Container incomePanel = givenIncomePanel();
+    final JToggleButton resourceModifiers = givenResourceModifiersSwitch();
+    final boolean offAtFirst = !resourceModifiers.isSelected();
 
-    // the first field of the table is the income of the first nation
-    componentsIn(incomePanel)
-        .filter(IntTextField.class::isInstance)
-        .map(IntTextField.class::cast)
-        .findFirst()
-        .orElseThrow()
-        .setValue(150);
+    resourceModifiers.doClick();
 
-    assertThat(textsIn(incomePanel))
-        .as("one row per nation")
-        .contains("Germans", "Russians", "Americans");
-    assertThat(
-            game.getPlayerList().getPlayers().stream()
-                .filter(
-                    player -> Properties.getIncomePercentage(player, game.getProperties()) == 150))
-        .as("the field sets what its nation collects, of the 100 % each starts with")
-        .hasSize(1);
+    assertThat(offAtFirst).as("the list of players stays short until asked").isTrue();
+    assertThat(ClientSetting.showResourceModifiers.getValueOrThrow())
+        .as("the rows of the players show the fields; remembered for the next games")
+        .isTrue();
   }
 
-  /** The table of incomes in the options, below the game's rules. */
-  private Container givenIncomePanel() {
+  private JToggleButton givenResourceModifiersSwitch() {
     final String title =
         I18nEngineFramework.get().getText("startup.SetupPanel.resourceModifiers.Lbl");
     return componentsIn(panel.getOptionsPanel())
-        .filter(JLabel.class::isInstance)
-        // a section heading is in capitals
-        .filter(label -> title.equalsIgnoreCase(((JLabel) label).getText()))
-        .map(Component::getParent)
+        .filter(JToggleButton.class::isInstance)
+        .map(JToggleButton.class::cast)
+        .filter(toggle -> title.equals(toggle.getText()))
         .findFirst()
         .orElseThrow();
+  }
+
+  @DisplayName("Load game lets the player choose the save the way the client gives it")
+  @Test
+  void loadGameAsksTheChooser() throws Exception {
+    final List<Component> askedFrom = new ArrayList<>();
+    // a local game's screen, where the player picks the game
+    model.setCanSelect(true);
+    final GameSelectorPanel withChooser =
+        new GameSelectorPanel(model, (parent, load) -> askedFrom.add(parent));
+    waitForEdt();
+
+    componentsIn(withChooser)
+        .filter(AbstractButton.class::isInstance)
+        .map(AbstractButton.class::cast)
+        .filter(button -> "Load game...".equals(button.getText()))
+        .findFirst()
+        .orElseThrow()
+        .doClick();
+
+    assertThat(askedFrom)
+        .as("eg the saved games page of the main window instead of a bare file chooser")
+        .containsExactly(withChooser);
   }
 
   @DisplayName("A joined game's host sets its options; a bot's host is asked to change them")

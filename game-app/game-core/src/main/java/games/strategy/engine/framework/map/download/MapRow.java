@@ -167,18 +167,30 @@ final class MapRow extends JPanel {
   }
 
   /**
-   * Name and creator over the status and the rating and downloads, a small button on the right; no
-   * picture.
+   * One slim line, about as high as a game in the list of Change map: name and creator on the left,
+   * status, rating and downloads and a small button on the right; no picture.
    */
   private void layOutCompact(final Actions actions) {
     setLayout(new BorderLayout(16, 0));
-    setBorder(newRowBorder(8));
-    final JPanel texts = newTexts();
-    texts.add(newTitle(map));
-    texts.add(status);
-    texts.add(MapRating.newSummary(map.getMapName()));
-    add(centeredVertically(texts), BorderLayout.CENTER);
-    add(centeredVertically(newSmallButtons(map, actions)), BorderLayout.EAST);
+    // just the room the download bar needs below the line
+    setBorder(newRowBorder(PROGRESS_HEIGHT + 2));
+    final JPanel title = new JPanel();
+    title.setLayout(new BoxLayout(title, BoxLayout.X_AXIS));
+    title.setOpaque(false);
+    title.add(new JLabelBuilder(map.getMapName()).bold().build());
+    creatorOf(map.getMapDownloadItem().getDescription())
+        .ifPresent(
+            creator -> {
+              title.add(Box.createHorizontalStrut(8));
+              title.add(newCreatorLabel(creator));
+            });
+    final JPanel facts = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 0));
+    facts.setOpaque(false);
+    facts.add(status);
+    facts.add(MapRating.newSummary(map.getMapName()));
+    facts.add(newSmallButtons(map, actions));
+    add(centeredVertically(title), BorderLayout.CENTER);
+    add(centeredVertically(facts), BorderLayout.EAST);
   }
 
   private static Border newRowBorder(final int verticalPadding) {

@@ -162,6 +162,7 @@ public class MainPanel extends JPanel {
       setupArea.add(gameSetupPanelScroll, BorderLayout.CENTER);
     }
     gameSelectorPanel.setVisible(!panel.isFullWindow());
+    gameSelectorPanel.getResourceModifiersSwitch().setVisible(panel.hasResourceModifiers());
     footer.setVisible(!panel.isFullWindow());
     barHolder.removeAll();
     barHolder.setVisible(!panel.isFullWindow());

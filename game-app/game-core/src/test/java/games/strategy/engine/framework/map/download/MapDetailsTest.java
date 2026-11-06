@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,7 +85,8 @@ final class MapDetailsTest {
         .endsWith(new Fact("Category", "WW2, Pacific"), new Fact("Era", "Modern"));
   }
 
-  @DisplayName("In a short window the ratings scroll below the facts and buttons, not over them")
+  @DisplayName(
+      "The ratings have a tab of their own, which scrolls below the buttons in a short window")
   @Test
   void ratingsStayBelowTheButtons() {
     final MapDetails details = givenDetails();
@@ -92,14 +94,20 @@ final class MapDetailsTest {
     final Component top =
         ((BorderLayout) details.getLayout()).getLayoutComponent(BorderLayout.NORTH);
     final Insets insets = details.getInsets();
+    final JTabbedPane tabs =
+        (JTabbedPane) ((BorderLayout) details.getLayout()).getLayoutComponent(BorderLayout.CENTER);
 
-    // room for the facts and buttons and 120 px below them, less than the ratings need
+    tabs.setSelectedIndex(tabs.indexOfTab("Ratings & reviews"));
+    // room for the picture, name and buttons and 120 px below them, less than the ratings need
     details.setSize(480, insets.top + top.getPreferredSize().height + 16 + 120 + insets.bottom);
     layOut(details);
 
     final MapRating rating = ratingIn(details);
     final Rectangle ratingBounds =
         SwingUtilities.convertRectangle(rating.getParent(), rating.getBounds(), details);
+    assertThat(tabs.getComponentAt(tabs.indexOfTab("About")))
+        .as("the facts and the description are in a tab next to it")
+        .matches(about -> findRating(about).isEmpty());
     assertThat(ratingBounds.y)
         .as("the ratings start below the buttons, the rest of them is scrolled to")
         .isGreaterThanOrEqualTo(top.getY() + top.getHeight());

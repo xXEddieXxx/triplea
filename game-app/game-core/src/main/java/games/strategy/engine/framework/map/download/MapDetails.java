@@ -27,6 +27,7 @@ import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.UIManager;
 import org.triplea.http.client.lobby.maps.listing.MapDownloadItem;
@@ -39,9 +40,10 @@ import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
 
 /**
  * The column right of a map list with the selected map: a large preview that slides up out of the
- * way by a click on its lower border, its name and creator, its versions, size, downloads, status
- * and tags and its buttons; below them, scrolling together, its full description and its ratings
- * and reviews ({@link MapRating}, a mockup).
+ * way by a click on its lower border, its name, creator and buttons; below them two tabs, each
+ * scrolling on its own: About with its versions, size, downloads, status and tags and its full
+ * description, and Ratings &amp; reviews ({@link MapRating}, a mockup), which so has the column's
+ * height for the player's own review and those of others.
  */
 final class MapDetails extends JPanel {
   @Serial private static final long serialVersionUID = 6127433920184626413L;
@@ -58,13 +60,16 @@ final class MapDetails extends JPanel {
   private final JLabel status = new JLabel();
   private final PreviewSlider previewSlider = new PreviewSlider();
 
-  /** The preview, name, facts and buttons, which stay at the top. */
+  /** The preview, name and buttons, which stay at the top. */
   private final JPanel top = new JPanel();
 
-  /** The description and the ratings, below the buttons, in {@link #bodyScroll}. */
-  private final JPanel body = new JPanel();
+  // the About tab: the facts, rebuilt with each status, above the description of the map
+  private final JPanel facts = new JPanel(new BorderLayout());
+  private final JPanel description = new JPanel(new BorderLayout());
+  private final JScrollPane aboutScroll;
 
-  private final JScrollPane bodyScroll;
+  // the Ratings & reviews tab; the ratings scroll themselves and keep their form in view below
+  private final JPanel reviews = new JPanel(new BorderLayout());
 
   /** The ratings the player saved while the window is open, by map name; nothing is sent. */
   private final transient Map<String, Review> ratings = new HashMap<>();
@@ -83,19 +88,22 @@ final class MapDetails extends JPanel {
     top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
     top.setOpaque(false);
     add(top, BorderLayout.NORTH);
-    body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-    body.setOpaque(false);
-    // the body keeps its height at the top of a taller viewport instead of stretching its fields
-    final JPanel view = new ScrollableJPanel();
-    view.setLayout(new BorderLayout());
-    view.setOpaque(false);
-    view.add(body, BorderLayout.NORTH);
-    bodyScroll = SwingComponents.newJScrollPane(view);
-    bodyScroll.setOpaque(false);
-    bodyScroll.getViewport().setOpaque(false);
-    bodyScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    final JPanel about = new JPanel();
+    about.setLayout(new BoxLayout(about, BoxLayout.Y_AXIS));
+    about.setOpaque(false);
+    facts.setOpaque(false);
+    description.setOpaque(false);
+    reviews.setOpaque(false);
+    addLeftAligned(about, facts);
+    about.add(Box.createVerticalStrut(16));
+    addLeftAligned(about, description);
+    aboutScroll = newTabScroll(about);
+    reviews.setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
+    final JTabbedPane tabs = new JTabbedPane();
+    tabs.addTab("About", aboutScroll);
+    tabs.addTab("Ratings & reviews", reviews);
     // added once, so a refresh never takes the name or comment being typed out of the window
-    add(bodyScroll, BorderLayout.CENTER);
+    add(tabs, BorderLayout.CENTER);
     // the preview fills the width of the details
     addComponentListener(
         new ComponentAdapter() {
@@ -104,6 +112,23 @@ final class MapDetails extends JPanel {
             fitPreview();
           }
         });
+  }
+
+  /**
+   * A tab's content scrolling on its own; it keeps its height at the top of a taller tab instead of
+   * stretching its fields.
+   */
+  private static JScrollPane newTabScroll(final JComponent content) {
+    final JPanel view = new ScrollableJPanel();
+    view.setLayout(new BorderLayout());
+    view.setOpaque(false);
+    view.setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
+    view.add(content, BorderLayout.NORTH);
+    final JScrollPane scroll = SwingComponents.newJScrollPane(view);
+    scroll.setOpaque(false);
+    scroll.getViewport().setOpaque(false);
+    scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    return scroll;
   }
 
   private void fitPreview() {
@@ -140,8 +165,8 @@ final class MapDetails extends JPanel {
                     new JLabelBuilder("by " + creator)
                         .foregroundColor(LookAndFeel.getSecondaryTextColor())
                         .build()));
-    top.add(Box.createVerticalStrut(12));
-    addLeftAligned(top, newFactsGrid(map));
+    facts.removeAll();
+    facts.add(newFactsGrid(map), BorderLayout.CENTER);
     final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
     buttons.setOpaque(false);
     MapRow.newButtons(map, actions).forEach(buttons::add);
@@ -158,19 +183,23 @@ final class MapDetails extends JPanel {
     repaint();
   }
 
-  /** The description, if the map has one, and the ratings, scrolled to the top. */
+  /** The description, if the map has one, and the ratings, both scrolled to the top. */
   private void showBody(final ManagedMap map) {
-    body.removeAll();
-    final String description = map.getMapDownloadItem().getDescription();
-    if (!MapRow.isMissingDescription(description)) {
-      addLeftAligned(body, newDescription(description));
-      body.add(Box.createVerticalStrut(16));
-    }
+    description.removeAll();
+    final String html = map.getMapDownloadItem().getDescription();
+    description.add(
+        MapRow.isMissingDescription(html)
+            ? new JLabelBuilder("This map has no description.")
+                .foregroundColor(LookAndFeel.getSecondaryTextColor())
+                .build()
+            : newDescription(html),
+        BorderLayout.CENTER);
     final String mapName = map.getMapName();
-    addLeftAligned(
-        body,
-        new MapRating(mapName, ratings.get(mapName), newRating -> ratings.put(mapName, newRating)));
-    bodyScroll.getVerticalScrollBar().setValue(0);
+    reviews.removeAll();
+    reviews.add(
+        new MapRating(mapName, ratings.get(mapName), newRating -> ratings.put(mapName, newRating)),
+        BorderLayout.CENTER);
+    aboutScroll.getVerticalScrollBar().setValue(0);
   }
 
   private static void addLeftAligned(final JPanel panel, final JComponent component) {

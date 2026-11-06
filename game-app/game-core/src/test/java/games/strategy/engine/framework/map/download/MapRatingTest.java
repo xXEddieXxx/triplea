@@ -1,9 +1,11 @@
 package games.strategy.engine.framework.map.download;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import games.strategy.engine.framework.map.download.MapRating.Review;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.JLabel;
@@ -59,8 +61,8 @@ final class MapRatingTest {
     rating.saveRating();
 
     assertThat(rating.reviews())
-        .as("the player's review above the three examples")
-        .hasSize(4)
+        .as("the player's review above the five examples")
+        .hasSize(6)
         .first()
         .isEqualTo(new Review(5, "Eddie", "just now · yours", ""));
   }
@@ -75,7 +77,7 @@ final class MapRatingTest {
         .isNull();
   }
 
-  @DisplayName("Every map shows three example reviews, the same each time, one at least anonymous")
+  @DisplayName("Every map shows five example reviews, the same each time, one at least anonymous")
   @Test
   void exampleReviewsAreStableWithAnonymousOne() {
     assertThat(MAP_NAMES)
@@ -83,9 +85,57 @@ final class MapRatingTest {
         .allSatisfy(
             mapName ->
                 assertThat(MapRating.exampleReviews(mapName))
-                    .hasSize(3)
+                    .hasSize(5)
                     .isEqualTo(MapRating.exampleReviews(mapName))
                     .anyMatch(review -> review.author().isEmpty()));
+  }
+
+  @DisplayName(
+      "Writing waits behind a button; saving closes the form and offers to edit the review")
+  @Test
+  void writingOpensOnRequest() {
+    final MapRating rating = new MapRating("Global 1940", null, saved::add);
+    final boolean writingAtFirst = rating.isWriting();
+
+    rating.getWrite().doClick();
+    final boolean writingAfterClick = rating.isWriting();
+    rating.rate(3);
+    rating.saveRating();
+
+    assertThat(List.of(writingAtFirst, writingAfterClick, rating.isWriting()))
+        .as("closed, open to write, closed again once saved")
+        .containsExactly(false, true, false);
+    assertThat(rating.getWrite().getText()).isEqualTo("Edit your review");
+  }
+
+  @DisplayName("A long comment is shortened at a word until Read more; a short one stays whole")
+  @Test
+  void longCommentsAreShortened() {
+    final String longComment = "word ".repeat(100).strip();
+
+    assertThat(MapRating.shortened(longComment))
+        .as("about 280 characters, ending with a whole word and an ellipsis")
+        .hasSizeLessThanOrEqualTo(281)
+        .endsWith("word…");
+    assertThat(MapRating.shortened("Great map.")).isEqualTo("Great map.");
+  }
+
+  @DisplayName("The example star counts add up to the ratings and peak at the average")
+  @Test
+  void exampleDistributionFitsTheAverage() {
+    assertThat(MAP_NAMES)
+        .allSatisfy(
+            mapName -> {
+              final List<Integer> distribution = MapRating.exampleDistribution(mapName);
+              final int peak = distribution.indexOf(Collections.max(distribution)) + 1;
+              assertThat(distribution.stream().mapToInt(Integer::intValue).sum())
+                  .as("one bar per number of stars, all of the ratings in them")
+                  .isEqualTo(MapRating.exampleCount(mapName));
+              // an average of eg 4.5 lies between two equally likely numbers of stars
+              assertThat((double) peak)
+                  .as("most players gave about the average")
+                  .isCloseTo(MapRating.exampleAverage(mapName), within(0.5));
+            });
   }
 
   @DisplayName("The example average lies between three and five stars and stays per map")

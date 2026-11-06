@@ -174,6 +174,11 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
   }
 
   @Override
+  public boolean hasResourceModifiers() {
+    return true;
+  }
+
+  @Override
   public String getScreenTitle() {
     return getWayToPlayTitle("PlayByForum");
   }

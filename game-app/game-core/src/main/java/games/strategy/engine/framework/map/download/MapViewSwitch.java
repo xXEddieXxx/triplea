@@ -25,7 +25,7 @@ import javax.swing.UIManager;
  * small arrow; a click opens the views to choose from, List, List with pictures or Tiles. Only the
  * player's choice reports a change; {@link #showChosen} does not.
  */
-final class MapViewSwitch extends JPanel {
+public final class MapViewSwitch extends JPanel {
   @Serial private static final long serialVersionUID = -3270517386431021844L;
 
   private static final int ICON_SIZE = 16;
@@ -34,7 +34,7 @@ final class MapViewSwitch extends JPanel {
   private final Map<MapBrowserView, JRadioButtonMenuItem> items =
       new EnumMap<>(MapBrowserView.class);
 
-  MapViewSwitch(final MapBrowserView view, final Consumer<MapBrowserView> viewChosen) {
+  public MapViewSwitch(final MapBrowserView view, final Consumer<MapBrowserView> viewChosen) {
     super(new BorderLayout());
     setOpaque(false);
     setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));

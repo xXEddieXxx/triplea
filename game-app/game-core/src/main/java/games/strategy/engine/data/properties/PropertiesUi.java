@@ -8,8 +8,11 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
@@ -43,7 +46,7 @@ public class PropertiesUi extends JPanel {
   private static final int FILTER_THRESHOLD = 12;
 
   private final List<Row> rows = new ArrayList<>();
-  // a narrow column: one switch per line, each value's name above its editor
+  // a narrow column of game options: in groups, one switch per line, each value's name on top
   private final boolean narrow;
 
   public PropertiesUi(final GameProperties gameProperties, final boolean editable) {
@@ -71,7 +74,10 @@ public class PropertiesUi extends JPanel {
     layoutRows(rows);
   }
 
-  /** The properties for a narrow side column: one switch per line, each value's name on top. */
+  /**
+   * The game's options for a narrow side column, in groups like Dice & battles: one switch per
+   * line, each value's name on top.
+   */
   public static PropertiesUi newNarrow(
       final GameProperties gameProperties, final boolean editable) {
     return new PropertiesUi(gameProperties.getEditableProperties(), editable, true);
@@ -79,6 +85,21 @@ public class PropertiesUi extends JPanel {
 
   private void layoutRows(final Collection<Row> visibleRows) {
     removeAll();
+    final int y = narrow ? addByCategory(visibleRows) : addByKind(visibleRows);
+    // keeps the rows at the top when the panel is taller than they need
+    add(
+        new JPanel(),
+        new GridBagConstraintsBuilder(0, y).weightY(1).fill(GridBagConstraintsFill.BOTH).build());
+    revalidate();
+    repaint();
+  }
+
+  /**
+   * The switches, then the values, each under a heading when there are both.
+   *
+   * @return the next free row
+   */
+  private int addByKind(final Collection<Row> visibleRows) {
     final List<Row> switches = visibleRows.stream().filter(Row::isSwitch).toList();
     final List<Row> values = visibleRows.stream().filter(row -> !row.isSwitch()).toList();
     // headings only help to tell the two kinds apart
@@ -88,22 +109,51 @@ public class PropertiesUi extends JPanel {
       if (bothKinds) {
         add(LookAndFeel.newSectionLabel("On / off"), newRowConstraints(y++, 0));
       }
-      add(newSwitchesPanel(switches, narrow ? 0 : MAX_WIDTH), newRowConstraints(y++, 4));
+      add(newSwitchesPanel(switches, MAX_WIDTH), newRowConstraints(y++, 4));
     }
     if (!values.isEmpty()) {
       if (bothKinds) {
         add(LookAndFeel.newSectionLabel("Values"), newRowConstraints(y++, 18));
       }
-      add(
-          narrow ? newStackedValuesPanel(values) : newValuesPanel(values),
-          newRowConstraints(y++, 4));
+      add(newValuesPanel(values), newRowConstraints(y++, 4));
     }
-    // keeps the rows at the top when the panel is taller than they need
-    add(
-        new JPanel(),
-        new GridBagConstraintsBuilder(0, y).weightY(1).fill(GridBagConstraintsFill.BOTH).build());
-    revalidate();
-    repaint();
+    return y;
+  }
+
+  /**
+   * The rows under a heading per group, eg Dice & battles, so a player finds related options
+   * together; in each group the switches one per line, then the values.
+   *
+   * @return the next free row
+   */
+  private int addByCategory(final Collection<Row> visibleRows) {
+    final Map<GameOptionCategory, List<Row>> groups =
+        visibleRows.stream()
+            .collect(
+                Collectors.groupingBy(
+                    row -> GameOptionCategory.of(row.name),
+                    () -> new EnumMap<>(GameOptionCategory.class),
+                    Collectors.toList()));
+    int y = 0;
+    for (final Map.Entry<GameOptionCategory, List<Row>> group : groups.entrySet()) {
+      // one group needs no heading
+      if (groups.size() >= 2) {
+        add(
+            LookAndFeel.newSectionLabel(group.getKey().getTitle()),
+            newRowConstraints(y, y == 0 ? 0 : 22));
+        y++;
+      }
+      final List<Row> switches = group.getValue().stream().filter(Row::isSwitch).toList();
+      final List<Row> values = group.getValue().stream().filter(row -> !row.isSwitch()).toList();
+      if (!switches.isEmpty()) {
+        // never two switches side by side in a narrow column
+        add(newSwitchesPanel(switches, 0), newRowConstraints(y++, 6));
+      }
+      if (!values.isEmpty()) {
+        add(newStackedValuesPanel(values), newRowConstraints(y++, switches.isEmpty() ? 6 : 12));
+      }
+    }
+    return y;
   }
 
   private static GridBagConstraints newRowConstraints(final int y, final int spaceAbove) {

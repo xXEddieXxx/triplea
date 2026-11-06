@@ -7,15 +7,19 @@ import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.I18nResourceBundle;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.startup.mc.HeadedPlayerTypes;
+import games.strategy.triplea.settings.ClientSetting;
+import games.strategy.triplea.settings.GameSetting;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -49,6 +53,32 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
   private static final int MAX_ALLIANCE_BUTTONS = 5;
 
   @Nullable private transient Consumer<SetupPanel> listener;
+  // shows the income fields of the rows of the current layout when the setting changes
+  @Nullable private transient Consumer<GameSetting<Boolean>> resourceModifiersListener;
+
+  /** Listens to the setting again when the screen shows again, eg after the Settings page. */
+  @Override
+  public void addNotify() {
+    super.addNotify();
+    Optional.ofNullable(resourceModifiersListener)
+        .ifPresent(
+            showing -> {
+              // at most once, also when the layout registered it already
+              ClientSetting.showResourceModifiers.removeListener(showing);
+              ClientSetting.showResourceModifiers.addListener(showing);
+            });
+  }
+
+  /**
+   * The setting is global: a screen that is gone, eg left for the main menu, stops listening, so it
+   * and its game do not stay in memory.
+   */
+  @Override
+  public void removeNotify() {
+    super.removeNotify();
+    Optional.ofNullable(resourceModifiersListener)
+        .ifPresent(ClientSetting.showResourceModifiers::removeListener);
+  }
 
   public void setPanelChangedListener(final Consumer<SetupPanel> listener) {
     this.listener = listener;
@@ -84,6 +114,10 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
     final I18nResourceBundle bundle = I18nEngineFramework.get();
     panel.removeAll();
     playerRows.clear();
+    // the rows of the last layout are gone
+    Optional.ofNullable(resourceModifiersListener)
+        .ifPresent(ClientSetting.showResourceModifiers::removeListener);
+    resourceModifiersListener = null;
     panel.setLayout(new GridBagLayout());
     if (data == null) {
       panel.add(new JLabel(bundle.getText("startup.SetupPanel.noGameSelected.Lbl")));
@@ -196,9 +230,12 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
             new Insets(0, 7, 5, 5),
             0,
             0));
+    final JLabel incomeLabel = new JLabel(bundle.getText("startup.SetupPanel.income.Lbl"));
+    panel.add(incomeLabel, newHeadingCell(gridX + 1, gridY, 1));
+    final JLabel bonusLabel = new JLabel(bundle.getText("startup.SetupPanel.bonusIncome.Lbl"));
+    panel.add(bonusLabel, newHeadingCell(gridX + 3, gridY, 2));
 
-    // Add players in the order they were defined in the XML; their income is set with the game's
-    // options
+    // Add players in the order they were defined in the XML
     for (final GamePlayer player : players) {
       final PlayerSelectorRow selector =
           new PlayerSelectorRow(
@@ -209,12 +246,25 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
               playersEnablementListing,
               data.getAllianceTracker().getAlliancesPlayerIsIn(player),
               this,
+              data.getProperties(),
               new PlayerTypes(HeadedPlayerTypes.getPlayerTypes()));
       playerRows.add(selector);
       if (!player.isHidden()) {
         selector.layout(++gridY, panel);
       }
     }
+
+    // the Resource Modifiers button of the game's options shows the income fields of each nation
+    final Consumer<Boolean> showResourceModifiers =
+        shown -> {
+          incomeLabel.setVisible(shown);
+          bonusLabel.setVisible(shown);
+          playerRows.forEach(row -> row.setResourceModifiersVisible(shown));
+          SwingComponents.redraw(panel);
+        };
+    showResourceModifiers.accept(ClientSetting.showResourceModifiers.getValueOrThrow());
+    resourceModifiersListener = setting -> showResourceModifiers.accept(setting.getValueOrThrow());
+    ClientSetting.showResourceModifiers.addListener(resourceModifiersListener);
 
     setAllTypes.addActionListener(
         e -> {
@@ -228,6 +278,22 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
           }
         });
     SwingComponents.redraw(panel);
+  }
+
+  /** A heading above the income fields, as wide as the field and its unit. */
+  private static GridBagConstraints newHeadingCell(final int x, final int y, final int width) {
+    return new GridBagConstraints(
+        x,
+        y,
+        width,
+        1,
+        0,
+        0,
+        GridBagConstraints.WEST,
+        GridBagConstraints.NONE,
+        new Insets(0, 20, 5, 0),
+        0,
+        0);
   }
 
   /**
@@ -319,13 +385,16 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
     buttons.add(
         newQuickSetupButton(
             bundle.getText("startup.SetupPanel.quickSetup.HotSeat.Lbl"),
-            () ->
-                playerRows.forEach(
-                    row -> row.setQuickSetupType(HeadedPlayerTypes.HUMAN_PLAYER.getLabel()))));
+            () -> {
+              final String computer = chosenComputer(playerRows);
+              playerRows.forEach(
+                  row ->
+                      row.setQuickSetupType(HeadedPlayerTypes.HUMAN_PLAYER.getLabel(), computer));
+            }));
     return panel;
   }
 
-  /** The alliance's nations to the player, the others to the computer. */
+  /** The alliance's nations to the player, the others to the computer player chosen. */
   private static void playAgainstComputer(
       final List<PlayerSelectorRow> playerRows,
       final AllianceTracker allianceTracker,
@@ -334,12 +403,28 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
         allianceTracker.getPlayersInAlliance(alliance).stream()
             .map(GamePlayer::getName)
             .collect(Collectors.toSet());
+    final String computer = chosenComputer(playerRows);
     playerRows.forEach(
         row ->
             row.setQuickSetupType(
                 members.contains(row.getPlayerName())
                     ? HeadedPlayerTypes.HUMAN_PLAYER.getLabel()
-                    : PlayerTypes.PRO_AI.getLabel()));
+                    : computer,
+                computer));
+  }
+
+  /**
+   * The computer player the player picked in the table, eg Fast AI by "Set all to": the one of the
+   * first nation played by the computer, those the player set before those the map gives the
+   * computer; the hard AI while no nation has one.
+   */
+  private static String chosenComputer(final List<PlayerSelectorRow> playerRows) {
+    return playerRows.stream()
+        .filter(PlayerSelectorRow::isPlayedByComputer)
+        .sorted(Comparator.comparing(PlayerSelectorRow::isComputerByDefault))
+        .map(row -> row.getPlayerType().getLabel())
+        .findFirst()
+        .orElse(PlayerTypes.PRO_AI.getLabel());
   }
 
   /** The alliances to play in a list; choosing one sets the players up at once. */
@@ -390,6 +475,15 @@ public abstract class SetupPanel extends JPanel implements SetupModel {
   }
 
   public abstract boolean isCancelButtonVisible();
+
+  /**
+   * Whether the player table has each nation's income fields ({@link #layoutPlayerComponents}),
+   * which the Resource Modifiers button of the game's options shows; the network screens lay out
+   * players of their own without them.
+   */
+  public boolean hasResourceModifiers() {
+    return false;
+  }
 
   /** Whether this is the main menu; a save opened from outside the client is continued there. */
   public boolean isMainMenu() {

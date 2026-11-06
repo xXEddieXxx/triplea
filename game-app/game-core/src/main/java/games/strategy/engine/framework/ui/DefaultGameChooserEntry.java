@@ -41,6 +41,11 @@ public class DefaultGameChooserEntry implements Comparable<DefaultGameChooserEnt
     return installedMap.readGameNotes(gameName).orElse("");
   }
 
+  /** The map's picture as a URL for {@code MapPreviews}; "" for a map without one. */
+  String findPreviewUrl() {
+    return installedMap.findPreviewImage().map(file -> file.toUri().toString()).orElse("");
+  }
+
   Optional<Path> getGameXmlFilePath() {
     return installedMap.getGameXmlFilePath(gameName);
   }

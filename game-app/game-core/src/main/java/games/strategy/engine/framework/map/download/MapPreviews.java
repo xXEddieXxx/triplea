@@ -37,11 +37,11 @@ import org.jetbrains.annotations.NonNls;
  * the most recent ones are kept, so browsing hundreds of maps does not fill the memory.
  */
 @Slf4j
-final class MapPreviews {
+public final class MapPreviews {
   /** The sizes the maps window shows previews in; the picture fills it, cut where needed. */
   @Getter
   @AllArgsConstructor
-  enum Size {
+  public enum Size {
     /** In a row of a map list; all rows of a long list keep theirs. */
     ROW(144, 81, 400),
     /** On a tile of the tiles view; fewer are kept, as they are larger. */
@@ -87,7 +87,7 @@ final class MapPreviews {
   // previews that could not be loaded, by URL; they are not tried again
   private final Set<String> failed = new HashSet<>();
 
-  MapPreviews(final Size size) {
+  public MapPreviews(final Size size) {
     this.size = size;
     final int kept = size.getKept();
     previews =

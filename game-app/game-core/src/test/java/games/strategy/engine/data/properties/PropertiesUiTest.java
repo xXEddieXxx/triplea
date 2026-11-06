@@ -2,6 +2,7 @@ package games.strategy.engine.data.properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
@@ -82,6 +83,19 @@ final class PropertiesUiTest {
     return component instanceof JTextField
         || (component instanceof Container container
             && Arrays.stream(container.getComponents()).anyMatch(PropertiesUiTest::hasTextField));
+  }
+
+  @DisplayName("The narrow column groups a game's options under headings like Dice & battles")
+  @Test
+  void narrowColumnGroupsTheOptions() {
+    final PropertiesUi column =
+        PropertiesUi.newNarrow(TestMapGameData.REVISED.getGameData().getProperties(), true);
+
+    assertThat(labelTexts(column))
+        .as("section headings are in capitals; Revised has Low Luck and victory options")
+        .contains("DICE & BATTLES", "VICTORY")
+        .doesNotContain("ON / OFF");
+    assertThat(checkBoxTexts(column)).as("the options themselves stay").contains("Low Luck");
   }
 
   @DisplayName("Read-only on/off options keep a label, so their names are not greyed out")

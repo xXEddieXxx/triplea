@@ -150,6 +150,11 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new IntegerClientSetting("SERVER_START_GAME_SYNC_WAIT_TIME", 180);
   public static final ClientSetting<Boolean> showBattlesWhenObserving =
       new BooleanClientSetting("SHOW_BATTLES_WHEN_OBSERVING", true);
+
+  /** Whether the setup screen shows each nation's income fields in its row. */
+  public static final ClientSetting<Boolean> showResourceModifiers =
+      new BooleanClientSetting("SHOW_RESOURCE_MODIFIERS", false);
+
   public static final ClientSetting<Boolean> showBetaFeatures =
       new BooleanClientSetting("SHOW_BETA_FEATURES");
   public static final ClientSetting<Boolean> useWebsocketNetwork =

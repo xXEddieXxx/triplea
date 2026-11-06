@@ -102,7 +102,13 @@ final class MainPanelTest {
         .doesNotContain("Reset");
     assertThat(onSetupScreen)
         .as("the options right on the screen, below the map's card with loading a game")
-        .contains("Reset", "Make default", "Load game...", "Hide game options");
+        .contains(
+            "Reset",
+            "Make default",
+            "Load game...",
+            "Hide game options",
+            // the local game's players have income fields for it to show
+            text("startup.SetupPanel.resourceModifiers.Lbl"));
     assertThat(buttonTitles(mainPanel))
         .as("the main menu chooses how to play first")
         .doesNotContain("Reset", "Load game...");

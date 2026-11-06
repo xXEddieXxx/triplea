@@ -5,6 +5,7 @@ import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListi
 import games.strategy.engine.framework.map.listing.MapListingFetcher;
 import games.strategy.engine.framework.startup.launcher.ILauncher;
 import games.strategy.engine.framework.startup.launcher.ServerLauncher;
+import games.strategy.engine.framework.startup.ui.SavedGamesPanel;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorPanel;
 import games.strategy.engine.framework.ui.background.WaitWindow;
@@ -40,7 +41,9 @@ public class MainPanelBuilder {
   public MainPanel buildMainPanel(
       final HeadedServerSetupModel headedServerSetupModel,
       final GameSelectorModel gameSelectorModel) {
-    final GameSelectorPanel gameSelectorPanel = new GameSelectorPanel(gameSelectorModel);
+    // Load game shows the saved games as the main menu does, not a bare file chooser
+    final GameSelectorPanel gameSelectorPanel =
+        new GameSelectorPanel(gameSelectorModel, SavedGamesPanel::choose);
     gameSelectorModel.addObserver(gameSelectorPanel);
 
     final MainPanel mainPanel =

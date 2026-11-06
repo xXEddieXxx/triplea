@@ -18,9 +18,9 @@ import javax.swing.Timer;
 /**
  * The map's preview at the top of the details, with its lower border as a handle: a click slides
  * the picture up out of the way, so the description and the rating get the room, another slides it
- * back down. The next map shows the same way.
+ * back down. The next map shows the same way. Also at the top of the chosen game in Change map.
  */
-final class PreviewSlider extends JPanel {
+public final class PreviewSlider extends JPanel {
   @Serial private static final long serialVersionUID = 4120851317339240951L;
   private static final int HANDLE_HEIGHT = 18;
   private static final int STEP_MILLIS = 15;
@@ -36,7 +36,7 @@ final class PreviewSlider extends JPanel {
   /** How much of the picture shows, from 0 (slid up) to 1 (all of it). */
   private double shown = 1;
 
-  PreviewSlider() {
+  public PreviewSlider() {
     super(null);
     setOpaque(false);
     handle.addActionListener(e -> toggle());
@@ -45,7 +45,7 @@ final class PreviewSlider extends JPanel {
   }
 
   /** Shows the preview of another map, open or slid up as the one before. */
-  void showPreview(final MapPreviewBox newPreview) {
+  public void showPreview(final MapPreviewBox newPreview) {
     if (preview != null) {
       remove(preview);
     }

@@ -4,8 +4,11 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.framework.AutoSaveFileUtils;
 import games.strategy.engine.framework.GameDataFileUtils;
+import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.I18nResourceBundle;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameFileSelector;
+import games.strategy.engine.framework.ui.MainWindowPages;
 import games.strategy.triplea.settings.ClientSetting;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -70,7 +73,7 @@ import org.triplea.swing.jpanel.JPanelBuilder;
  * folders are read in the background, a folder with many saves must not freeze the menu.
  */
 @Slf4j
-final class SavedGamesPanel extends JPanel {
+public final class SavedGamesPanel extends JPanel {
   @Serial private static final long serialVersionUID = -6203385245541212736L;
 
   private static final String LIST = "list";
@@ -218,6 +221,37 @@ final class SavedGamesPanel extends JPanel {
     return savedGame.kind() == SaveKind.AUTO_SAVE
         ? bundle.getText(PREFIX + "AutoSave") + "  ·  " + when + "  ·  " + size
         : when + "  ·  " + size;
+  }
+
+  /**
+   * Lets the player choose a saved game on a page of the main window, as Load game of the main menu
+   * does, eg for Load game on a setup screen; the page closes before the save goes to {@code load}.
+   * Without the main window on screen, a file chooser asks instead.
+   */
+  public static void choose(final Component parent, final Consumer<Path> load) {
+    MainWindowPages.getVisibleMainWindow()
+        .ifPresentOrElse(
+            window -> {
+              final I18nResourceBundle bundle = I18nEngineFramework.get();
+              final Consumer<Path> chosen =
+                  save -> {
+                    window.closePage();
+                    load.accept(save);
+                  };
+              final SavedGamesPanel page =
+                  new SavedGamesPanel(
+                      bundle,
+                      chosen,
+                      () -> GameFileSelector.selectSavedGame(parent).ifPresent(chosen));
+              page.setBorder(BorderFactory.createEmptyBorder(16, 32, 16, 32));
+              window.showPage(
+                  bundle.getText("startup.MetaSetupPanel.LoadGame"),
+                  page,
+                  window::closePage,
+                  () -> {});
+              page.refresh();
+            },
+            () -> GameFileSelector.selectSavedGame(parent).ifPresent(load));
   }
 
   /** Reads the saved games again, eg each time the page is shown. */

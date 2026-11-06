@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.sonatype.goodies.prefs.memory.MemoryPreferences;
+import org.triplea.swing.IntTextField;
 
 final class SetupPanelTest {
   private static final String HUMAN = HeadedPlayerTypes.HUMAN_PLAYER.getLabel();
@@ -61,6 +62,38 @@ final class SetupPanelTest {
                 "Russians", COMPUTER,
                 "British", COMPUTER,
                 "Americans", COMPUTER));
+  }
+
+  @DisplayName("'Play Axis' keeps the AI the player chose for the table, eg Fast AI")
+  @Test
+  void playAllianceKeepsTheChosenComputer() {
+    final String fast = PlayerTypes.FAST_AI.getLabel();
+    // as "Set all to: Fast AI" does
+    playerRows.forEach(row -> row.setPlayerType(fast));
+
+    clickButton(playButtonTitle("Axis"));
+
+    assertThat(playerTypesByName())
+        .as("the other nations stay with the Fast AI instead of jumping to the hard AI")
+        .containsEntry("Germans", HUMAN)
+        .containsEntry("Russians", fast)
+        .containsEntry("Americans", fast);
+  }
+
+  @DisplayName("'Play Axis' leaves an AI picked for a single nation as it is")
+  @Test
+  void playAllianceKeepsSingleNationAis() {
+    final String fast = PlayerTypes.FAST_AI.getLabel();
+    final String weak = PlayerTypes.WEAK_AI.getLabel();
+    playerRows.forEach(
+        row -> row.setPlayerType(row.getPlayerName().equals("British") ? fast : weak));
+
+    clickButton(playButtonTitle("Axis"));
+
+    assertThat(playerTypesByName())
+        .as("each computer nation keeps the AI chosen for it")
+        .containsEntry("British", fast)
+        .containsEntry("Russians", weak);
   }
 
   @DisplayName("'Everyone human' lets all nations be played at this computer")
@@ -142,6 +175,26 @@ final class SetupPanelTest {
                 component instanceof Container inner
                     ? Stream.concat(Stream.of(component), componentsIn(inner))
                     : Stream.of(component));
+  }
+
+  @DisplayName("Resource Modifiers in the game options shows the income fields next to each nation")
+  @Test
+  void resourceModifiersShowNextToEachNation() {
+    final long fieldsAtFirst = countVisibleIncomeFields();
+
+    ClientSetting.showResourceModifiers.setValue(true);
+
+    assertThat(fieldsAtFirst).as("the list of players stays short until asked").isZero();
+    assertThat(countVisibleIncomeFields())
+        .as("income and bonus for each of Revised's five nations, in their rows")
+        .isEqualTo(10);
+  }
+
+  private long countVisibleIncomeFields() {
+    return componentsIn(playersPanel)
+        .filter(IntTextField.class::isInstance)
+        .filter(Component::isVisible)
+        .count();
   }
 
   @DisplayName("Play by email or forum shows the player table without the quick setup")

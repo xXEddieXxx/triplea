@@ -2,10 +2,14 @@ package games.strategy.engine.framework.ui;
 
 import java.awt.Color;
 import java.awt.Container;
+import java.awt.Font;
 import java.awt.Rectangle;
+import java.io.Serial;
+import java.util.Optional;
 import javax.swing.JEditorPane;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.text.Element;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.View;
@@ -13,6 +17,7 @@ import javax.swing.text.ViewFactory;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.ImageView;
+import javax.swing.text.html.StyleSheet;
 
 /** Component for displaying HTML-formatted game notes. */
 public class GameNotesView extends JEditorPane {
@@ -39,8 +44,40 @@ public class GameNotesView extends JEditorPane {
     SwingUtilities.invokeLater(() -> scrollRectToVisible(new Rectangle()));
   }
 
-  /** HTML kit that scales embedded images down to fit the viewport width. */
+  /**
+   * HTML kit that scales embedded images down to fit the viewport width, and sets the notes in a
+   * calm, readable way: the font of the interface a bit larger, room around the text and between
+   * paragraphs. A map's own styles still win.
+   */
   private static final class ScalingHtmlEditorKit extends HTMLEditorKit {
+    @Serial private static final long serialVersionUID = 1L;
+
+    // its own sheet: the kit's default one is shared by every HTML view of the client
+    private final StyleSheet styles = newReadableStyles();
+
+    @Override
+    public StyleSheet getStyleSheet() {
+      return styles;
+    }
+
+    private static StyleSheet newReadableStyles() {
+      final StyleSheet readable = new StyleSheet();
+      readable.addStyleSheet(new HTMLEditorKit().getStyleSheet());
+      final Font font =
+          Optional.ofNullable(UIManager.getFont("Label.font"))
+              .orElseGet(() -> new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+      readable.addRule(
+          "body { font-family: '"
+              + font.getFamily()
+              + "'; font-size: "
+              + (font.getSize() + 2)
+              + "px; margin: 12px 20px 20px 20px; }");
+      readable.addRule("p { margin-top: 0; margin-bottom: 10px; }");
+      readable.addRule("li { margin-bottom: 4px; }");
+      readable.addRule("h1, h2, h3 { margin-top: 14px; margin-bottom: 6px; }");
+      return readable;
+    }
+
     @Override
     public ViewFactory getViewFactory() {
       final ViewFactory delegate = super.getViewFactory();

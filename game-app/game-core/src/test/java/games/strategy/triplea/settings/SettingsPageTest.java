@@ -89,7 +89,12 @@ final class SettingsPageTest {
 
     assertThat(page.getShownSettingTitles())
         .as("titles and descriptions, in any case: the proxy is for forum games too")
-        .containsExactly("Network proxy", "TripleA forum", "Axis & Allies forum", "Dice server");
+        .containsExactly(
+            "Tell me of my turn in forum games",
+            "Network proxy",
+            "TripleA forum",
+            "Axis & Allies forum",
+            "Dice server");
     assertThat(textsOf(page.getComponent())).contains("Search results");
   }
 
@@ -115,7 +120,8 @@ final class SettingsPageTest {
 
     assertThat(page.getShownSettingTitles())
         .as("Audio was selected before the search")
-        .containsExactly("Sound effects", "Volume", "Mute in the background", "Single sounds");
+        .containsExactly(
+            "Sound effects", "Volume", "Sound theme", "Mute in the background", "Single sounds");
   }
 
   @DisplayName("The reset link resets the settings of the shown section")

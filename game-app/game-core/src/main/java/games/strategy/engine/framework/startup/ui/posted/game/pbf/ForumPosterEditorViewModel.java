@@ -231,12 +231,7 @@ class ForumPosterEditorViewModel {
 
   /** The browser session the Play by forum page keeps for the forum; empty when signed out. */
   private static Optional<String> sessionOf(final String forum) {
-    return (forum.equals(NodeBbForumPoster.TRIPLEA_FORUM_DISPLAY_NAME)
-            ? ClientSetting.tripleaForumSession
-            : ClientSetting.aaForumSession)
-        .getValue()
-        .filter(session -> session.length > 0)
-        .map(String::valueOf);
+    return NodeBbGameThreads.sessionOf(forum);
   }
 
   private String notSignedInText() {

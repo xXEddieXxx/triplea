@@ -27,7 +27,7 @@ macOS-specific: opening a file or a `triplea://` URI is translated to the corres
 - **`org.triplea.sound`** — Audio playback (`DefaultSoundChannel` — routes server-side sound events to local `ClipPlayer` based on which players are local)
 - **`org.triplea.lobby.common`** — `LobbyGameUpdateListener` interface (notifies of game additions/removals via WebSocket)
 - **`games.strategy.engine.framework.ui`** — `MainFrame` — main game frame and window management; while it is showing, Settings and Maps open as its pages (`MainFramePages`, registered as the `PageHost` of game-core's `MainWindowPages`, shows them below a `BackBar` whose link names the setup screen they replaced, eg "Back to Main menu"), so the client stays one window; `WindowPlacement` starts it maximized (or in full screen, a setting) and remembers a size the player gave it
-- **`games.strategy.engine.framework.startup.ui`** — Game setup panels (local, server, client, meta-setup, player selector)
+- **`games.strategy.engine.framework.startup.ui`** — Game setup panels (local, server, client, meta-setup, player selector); the play by forum page `ForumGamesPanel` (games, posts with quote and, for the player's own, edit and delete, a "new posts" line after the newest post seen here, `ForumPostsSeen`, the unsent answer kept per game while TripleA runs, and in a thread of one page without a save "Start the game in this thread", `HeadedServerSetupModel.showPbf(forum, topic)`); its `ForumMessageEditor` also mentions the thread's players ("@"), as does the end of a turn (`ForumPosterComponent`, with pictures where the player is signed in) and `ForumTurnNotifier`, started with the client, which asks the signed-in forums every 30 minutes and shows a system tray message for a new turn, one for several (`ClientSetting.notifyForumTurns`)
 - **`games.strategy.engine.framework.startup.ui.panels.main`** — `MainPanel`/`MainPanelBuilder`, `HeadedServerSetupModel`
 - **`games.strategy.engine.framework.startup.ui.posted.game`** — PBEM/PBF setup panels (`PbemSetupPanel`, `PbfSetupPanel`)
 - **`games.strategy.engine.framework.startup.mc`** — `HeadedLaunchAction` (creates `TripleAFrame` and `TripleADisplay` at game start), `HeadedPlayerTypes` (maps player type enums to implementations — human, client, DoesNothing, FlowFieldAi), `HeadedServerStartupRemote`
@@ -75,7 +75,7 @@ The headed module provides ~20 gameplay UI files in `games.strategy.triplea.ui` 
   - "Technology" (Ctrl+Y) — `TechnologyPanel` (conditional: only if tech is in the game)
   - "Resources" (Ctrl+R) — `EconomyPanel`
   - Custom objective tab (Ctrl+O) — `ObjectivePanel` (conditional: only if objectives exist in game data)
-- **Conditional panels**: `EditPanel` (shown as tab when edit mode is active), `HistoryPanel` (game history navigation)
+- **Conditional panels**: `EditPanel` (shown as tab when edit mode is active), `HistoryPanel` (game history navigation; on the first turn of a local human, eg after loading a save, the history opens at the end of that player's last turn, `History.getFirstStepSinceLastTurnOf`, while `ClientSetting.replayOthersTurnsOnLoad` is on)
 - **Other components**: `ChatPanel` (multiplayer chat, nullable), `CommentPanel`, `BottomBar`
 - **Quick bar**: `GameToolBar`'s game menus (history, save, settings, network) at the left end of the turn guide, its tools (battle calculator, find, politics, edit mode, statistics, help) at the right end; the bar shows from the start and also in the history, in place of a menu bar (see [Menu Bar](#menu-bar-uimenubar-10-files))
 

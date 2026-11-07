@@ -55,12 +55,7 @@ public class ZippedMapsExtractor {
             zippedMaps.forEach(
                 mapZip -> {
                   try {
-                    unzipMap(mapZip)
-                        // check if the unzipped map has a 'map.yaml' file
-                        .filter(installPath -> MapDescriptionYaml.fromMap(installPath).isEmpty())
-                        // if no 'map.yaml' file exists, attempt to generate one.
-                        // Before 2.6 maps did not include a 'map.yaml' file and were zipped.
-                        .ifPresent(MapDescriptionYaml::generateForMap);
+                    unzipMapWithMapYaml(mapZip);
                   } catch (final ZipReadException zipReadException) {
                     if (GameRunner.headless()) {
                       log.warn(
@@ -92,6 +87,15 @@ public class ZippedMapsExtractor {
                         e);
                   }
                 }));
+  }
+
+  /** Unzips the map and gives it a 'map.yml' if it has none, as maps before 2.6. */
+  private static Optional<Path> unzipMapWithMapYaml(final Path mapZip) {
+    final Optional<Path> mapFolder = unzipMap(mapZip);
+    mapFolder
+        .filter(installPath -> MapDescriptionYaml.fromMap(installPath).isEmpty())
+        .ifPresent(MapDescriptionYaml::generateForMap);
+    return mapFolder;
   }
 
   private Collection<Path> findAllZippedMapFiles() {
@@ -156,6 +160,62 @@ public class ZippedMapsExtractor {
     } catch (final IOException e) {
       log.warn("Error extracting file: {}, {}", mapZip.toAbsolutePath(), e.getMessage(), e);
       return Optional.empty();
+    }
+  }
+
+  /**
+   * Installs a map from a zip the player picked. Extracts a copy, as unzipMap deletes the zip it
+   * extracted, so the player keeps the file. A zip in the maps folder itself goes, as TripleA would
+   * extract it at its next start.
+   *
+   * @return The extracted map folder, empty if the file is no zip, a map of its name is installed
+   *     (unzipMap would delete it) or it could not be extracted.
+   */
+  public static Optional<Path> importMapZip(final Path zip) {
+    final String fileName = zip.getFileName().toString();
+    if (!fileName.toLowerCase(Locale.ROOT).endsWith(ZIP_EXTENSION) || !Files.isRegularFile(zip)) {
+      return Optional.empty();
+    }
+    // unzipMap only takes a lower case ".zip"
+    final String copyName =
+        fileName.substring(0, fileName.length() - ZIP_EXTENSION.length()) + ZIP_EXTENSION;
+    final Path mapsFolder = ClientFileSystemHelper.getUserMapsFolder();
+    if (Files.exists(mapsFolder.resolve(computeExtractionFolderName(copyName)))) {
+      return Optional.empty();
+    }
+    final Path copy = mapsFolder.resolve(copyName);
+    try {
+      Files.copy(zip, copy, StandardCopyOption.REPLACE_EXISTING);
+    } catch (final IOException e) {
+      log.warn("Could not copy {} to {}", zip, copy, e);
+      return Optional.empty();
+    }
+    try {
+      final Optional<Path> mapFolder = unzipMapWithMapYaml(copy);
+      if (mapFolder.isEmpty()) {
+        cleanUpFailedImport(zip, copy);
+      }
+      return mapFolder;
+    } catch (final ZipReadException | FileSystemException | ZipExtractor.ZipSecurityException e) {
+      log.warn("Could not import the map zip {}", zip, e);
+      cleanUpFailedImport(zip, copy);
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * Removes what a failed import left: the half extracted folder and the copy, but not the player's
+   * own zip in the maps folder.
+   */
+  private static void cleanUpFailedImport(final Path zip, final Path copy) {
+    try {
+      FileUtils.deleteDirectory(
+          copy.resolveSibling(computeExtractionFolderName(copy.getFileName().toString())));
+      if (Files.exists(copy) && !Files.isSameFile(zip, copy)) {
+        Files.delete(copy);
+      }
+    } catch (final IOException e) {
+      log.warn("Could not delete {}", copy, e);
     }
   }
 

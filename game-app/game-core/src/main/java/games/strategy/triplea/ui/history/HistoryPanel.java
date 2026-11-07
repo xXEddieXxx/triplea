@@ -207,7 +207,8 @@ public class HistoryPanel extends JPanel {
     }
   }
 
-  private void navigateTo(final TreeNode target) {
+  /** Selects the node and shows the map as it was there. */
+  public void navigateTo(final TreeNode target) {
     final TreeNode[] nodes = ((DefaultMutableTreeNode) target).getPath();
     final TreePath newPath = new TreePath(nodes);
     tree.expandPath(newPath);

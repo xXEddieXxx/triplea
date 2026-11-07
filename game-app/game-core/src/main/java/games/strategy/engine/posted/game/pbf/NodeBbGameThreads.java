@@ -7,6 +7,8 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import games.strategy.engine.framework.system.HttpProxy;
 import games.strategy.engine.posted.game.pbf.NodeBbHttpClients.Builder;
+import games.strategy.triplea.UrlConstants;
+import games.strategy.triplea.settings.ClientSetting;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serial;
@@ -136,7 +138,7 @@ public final class NodeBbGameThreads {
    * A post of a thread as plain text and as the forum's HTML, with the save games attached to it;
    * by its author's name as shown and the author's slug, as {@link Player#userslug} unique, and the
    * author's avatar as the forum draws it without a picture: a letter on a color, eg "L" on
-   * "#ffc107" (empty when none).
+   * "#ffc107" (empty when none); its number in the forum, to edit or delete it.
    */
   public record ThreadPost(
       String author,
@@ -146,13 +148,23 @@ public final class NodeBbGameThreads {
       Instant time,
       String text,
       String html,
-      List<SaveGame> saveGames) {}
+      List<SaveGame> saveGames,
+      int pid) {}
 
   /**
    * A page of a thread's posts, oldest first; pages count from 1. Whether the signed-in player
    * follows the thread, so the forum tells of its new posts.
    */
-  public record ThreadPage(List<ThreadPost> posts, int page, int pageCount, boolean watched) {}
+  public record ThreadPage(List<ThreadPost> posts, int page, int pageCount, boolean watched) {
+    /** Who posted on the page, by their slugs, newest first, without the player given. */
+    public List<String> playersBut(final String playerSlug) {
+      return posts.reversed().stream()
+          .map(ThreadPost::authorSlug)
+          .filter(slug -> !slug.isEmpty() && !slug.equals(playerSlug))
+          .distinct()
+          .toList();
+    }
+  }
 
   private NodeBbGameThreads(
       final String forumUrl, final int playByForumCategory, final UnaryOperator<Builder> login) {
@@ -180,6 +192,36 @@ public final class NodeBbGameThreads {
       final String forumUrl, final int playByForumCategory, final String session) {
     return new NodeBbGameThreads(
         forumUrl, playByForumCategory, builder -> builder.sessionCookie(session));
+  }
+
+  /**
+   * The forum of a game, by the name the game keeps (eg {@link
+   * NodeBbForumPoster#TRIPLEA_FORUM_DISPLAY_NAME}), with the player's session from the Play by
+   * forum page, to upload pictures or read the game's thread as the player; empty for a game by
+   * email and while the player is signed out there.
+   */
+  public static Optional<NodeBbGameThreads> withSessionOf(final String forumName) {
+    if (!NodeBbForumPoster.availablePosters().contains(forumName)) {
+      return Optional.empty();
+    }
+    final boolean triplea = forumName.equals(NodeBbForumPoster.TRIPLEA_FORUM_DISPLAY_NAME);
+    return sessionOf(forumName)
+        .map(
+            session ->
+                withSession(
+                    triplea ? UrlConstants.TRIPLEA_FORUM : UrlConstants.AXIS_AND_ALLIES_FORUM,
+                    triplea ? TRIPLEA_PLAY_BY_FORUM_CATEGORY : 0,
+                    session));
+  }
+
+  /** The browser session the Play by forum page keeps for the forum; empty when signed out. */
+  public static Optional<String> sessionOf(final String forumName) {
+    return (forumName.equals(NodeBbForumPoster.TRIPLEA_FORUM_DISPLAY_NAME)
+            ? ClientSetting.tripleaForumSession
+            : ClientSetting.aaForumSession)
+        .getValue()
+        .filter(session -> session.length > 0)
+        .map(String::valueOf);
   }
 
   /**
@@ -526,6 +568,39 @@ public final class NodeBbGameThreads {
     }
   }
 
+  /** The text of the player's own post as written, Markdown, to edit it. */
+  public String rawPost(final int pid) throws IOException {
+    try (CloseableHttpClient client = newClient()) {
+      return objectOf(readObject(client, "api/v3/posts/" + pid + "/raw"), "response")
+          .map(answer -> stringOf(answer, "content"))
+          .orElseThrow(() -> new IOException("The forum sent no text of the post"));
+    }
+  }
+
+  /** Replaces the text of the player's own post. */
+  public void editPost(final int pid, final String content) throws IOException {
+    try (CloseableHttpClient client = newClient()) {
+      final HttpPut put = limited(HttpPut::new, forum.resolve("api/v3/posts/" + pid));
+      put.setHeader(CSRF_HEADER, csrfToken(client));
+      final JsonObject body = new JsonObject();
+      body.addProperty("content", content);
+      put.setEntity(new StringEntity(body.toString(), ContentType.APPLICATION_JSON));
+      answerOf(client, put, "the edit");
+    }
+  }
+
+  /** Deletes the player's own post as the forum's own button does: a moderator can restore it. */
+  public void deletePost(final int pid) throws IOException {
+    try (CloseableHttpClient client = newClient()) {
+      final HttpDelete delete =
+          limited(HttpDelete::new, forum.resolve("api/v3/posts/" + pid + "/state"));
+      delete.setHeader(CSRF_HEADER, csrfToken(client));
+      try (CloseableHttpResponse response = client.execute(delete)) {
+        checkOk(response);
+      }
+    }
+  }
+
   /**
    * Follows the game as the signed-in player, as the forum's Watch does: the forum tells of its new
    * posts, and a game of others shows among the player's games, to watch.
@@ -734,7 +809,8 @@ public final class NodeBbGameThreads {
         Instant.ofEpochMilli(longOf(post, "timestamp")),
         plainText(html),
         html,
-        saveGamesIn(html, forum));
+        saveGamesIn(html, forum),
+        intOf(post, "pid"));
   }
 
   /**

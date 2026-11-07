@@ -36,7 +36,9 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JToggleButton;
@@ -85,16 +87,19 @@ public final class ForumMessageEditor extends JPanel {
    * @param forum the forum's address, which links and pictures in the preview are relative to
    */
   public ForumMessageEditor(final String placeholder, final Supplier<URI> forum) {
-    this(placeholder, forum, null);
+    this(placeholder, forum, null, List::of);
   }
 
   /**
    * @param attachPicture uploads a picture, chosen, pasted or dropped, and links it at the caret
+   * @param players the game's players to mention, by their names in the forum's addresses, eg
+   *     "ann-lee": the forum tells a player mentioned of the post
    */
-  ForumMessageEditor(
+  public ForumMessageEditor(
       final String placeholder,
       final Supplier<URI> forum,
-      final @Nullable Consumer<Path> attachPicture) {
+      final @Nullable Consumer<Path> attachPicture,
+      final Supplier<List<String>> players) {
     super(new BorderLayout(0, MenuSpacing.S));
     this.forum = forum;
     setOpaque(false);
@@ -107,7 +112,9 @@ public final class ForumMessageEditor extends JPanel {
     }
     final JPanel bar = new JPanel(new BorderLayout());
     bar.setOpaque(false);
-    bar.add(newFormatBar(attachPicture), BorderLayout.WEST);
+    final JPanel formats = newFormatBar(attachPicture);
+    formats.add(newMentionButton(players));
+    bar.add(formats, BorderLayout.WEST);
     bar.add(newModes(), BorderLayout.EAST);
     add(bar, BorderLayout.NORTH);
     preview.setOpaque(false);
@@ -177,7 +184,7 @@ public final class ForumMessageEditor extends JPanel {
    * Bold, italic, a quote, a list and a link, written into the message as the forum reads them, and
    * a picture; letters and icons in the text color, large enough to read at a glance.
    */
-  private JComponent newFormatBar(final @Nullable Consumer<Path> attachPicture) {
+  private JPanel newFormatBar(final @Nullable Consumer<Path> attachPicture) {
     final JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
     bar.setOpaque(false);
     final JButton bold = newFormatButton("Bold", () -> wrapSelection("**", "**"));
@@ -201,6 +208,44 @@ public final class ForumMessageEditor extends JPanel {
               () -> choosePicture(attachPicture)));
     }
     return bar;
+  }
+
+  /** "@": a menu of the game's players; the one chosen is mentioned at the caret. */
+  private JButton newMentionButton(final Supplier<List<String>> players) {
+    final JButton mention = newFormatButton("Mention a player: the forum tells them", () -> {});
+    mention.setText("@");
+    mention.setFont(mention.getFont().deriveFont(Font.BOLD, mention.getFont().getSize2D() + 3));
+    mention.addActionListener(
+        e -> {
+          final JPopupMenu menu = new JPopupMenu();
+          final List<String> names = players.get();
+          if (names.isEmpty()) {
+            final JMenuItem none = new JMenuItem("No players known yet");
+            none.setEnabled(false);
+            menu.add(none);
+          }
+          names.forEach(
+              name -> {
+                final JMenuItem item = new JMenuItem("@" + name);
+                item.addActionListener(
+                    chosen -> {
+                      textArea.insert(
+                          mentionOf(textArea.getText(), textArea.getCaretPosition(), name),
+                          textArea.getCaretPosition());
+                      textArea.requestFocusInWindow();
+                    });
+                menu.add(item);
+              });
+          menu.show(mention, 0, mention.getHeight());
+        });
+    return mention;
+  }
+
+  /** "@name " at the caret, with a space before it where a word ends there. */
+  @VisibleForTesting
+  static String mentionOf(final String text, final int caret, final String name) {
+    final boolean afterWord = caret > 0 && !Character.isWhitespace(text.charAt(caret - 1));
+    return (afterWord ? " " : "") + "@" + name + " ";
   }
 
   /** Write and Preview, as in the forum's own editor. */

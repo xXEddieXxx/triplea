@@ -15,7 +15,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
@@ -221,6 +223,37 @@ public class History extends DefaultTreeModel {
           }
           nodesWereRemoved(parent, childIndices, removedArray);
         });
+  }
+
+  /// Returns the first step after the last turn of a local player that other players' turns
+  /// follow, the start of what they did since; empty if no local player had a turn before theirs.
+  public Optional<Step> getFirstStepSinceLastTurnOf(final Predicate<GamePlayer> isLocal) {
+    final List<Step> steps = new ArrayList<>();
+    final Enumeration<?> nodes = ((DefaultMutableTreeNode) getRoot()).preorderEnumeration();
+    while (nodes.hasMoreElements()) {
+      if (nodes.nextElement() instanceof Step step) {
+        steps.add(step);
+      }
+    }
+    final int lastOther =
+        lastIndexOf(
+            steps,
+            steps.size(),
+            step ->
+                step.getPlayerId()
+                    .filter(player -> !player.isNull() && !isLocal.test(player))
+                    .isPresent());
+    final int lastLocal =
+        lastIndexOf(steps, lastOther, step -> step.getPlayerId().filter(isLocal).isPresent());
+    return lastLocal < 0 ? Optional.empty() : Optional.of(steps.get(lastLocal + 1));
+  }
+
+  private static int lastIndexOf(
+      final List<Step> steps, final int end, final Predicate<Step> matches) {
+    return IntStream.range(0, Math.max(end, 0))
+        .filter(i -> matches.test(steps.get(i)))
+        .max()
+        .orElse(-1);
   }
 
   /// Returns the current player, accounting for the fact that we may be looking at a previous node

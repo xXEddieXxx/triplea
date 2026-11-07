@@ -5,6 +5,7 @@ import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.startup.ui.ForumBrowserLogin.SignedIn;
 import games.strategy.engine.framework.startup.ui.LineIcon.Kind;
 import games.strategy.engine.framework.startup.ui.panels.main.HeadedServerSetupModel;
+import games.strategy.engine.posted.game.pbf.ForumPostsSeen;
 import games.strategy.engine.posted.game.pbf.NodeBbForumPoster;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
 import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
@@ -29,6 +30,7 @@ import java.awt.RenderingHints;
 import java.io.Serial;
 import java.net.URI;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -59,6 +61,7 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
@@ -129,6 +132,12 @@ final class ForumGamesPanel extends JPanel {
   private static final String JOIN_REQUEST = "I'd like to join this game. I can take over: ";
 
   private static final String JOIN_GAME = "Join game";
+  private static final String SEND = "Send";
+  private static final String SAVE_EDIT = "Save edit";
+
+  /** The lines of a post a quote takes: a whole turn summary would bury the answer. */
+  private static final int QUOTED_LINES = 12;
+
   private static final String MOVE_TO_OLD_GAMES = "Move to old games";
   private static final String BACK_TO_MY_GAMES = "Back to my games";
 
@@ -242,11 +251,27 @@ final class ForumGamesPanel extends JPanel {
       new ForumMessageEditor(
           "Write an answer; Preview shows it as the forum will",
           this::forumAddress,
-          this::attachPicture);
+          this::attachPicture,
+          () -> this.mentionable);
   private final JTextArea message = editor.getTextArea();
   private final JLabel attachment = new JLabel();
   private final JTextArea sendStatus = newSecondaryText();
-  private final JButton sendButton = new JButton("Send");
+  private final JButton sendButton = new JButton(SEND);
+
+  /** Above the answer while the player edits an own post: Cancel goes back to the answer. */
+  private final JPanel editingNote = new JPanel(new FlowLayout(FlowLayout.LEFT, MenuSpacing.S, 0));
+
+  /** The player's own post being edited instead of answering; none while answering. */
+  private transient @Nullable ThreadPost editing;
+
+  /** The answer written before an edit started, back when the edit is done or cancelled. */
+  private String answerBeforeEdit = "";
+
+  /** The players who posted on the page of the game shown, but the player, to mention. */
+  private transient List<String> mentionable = List.of();
+
+  /** What the player wrote to other games and did not send, by game, while TripleA runs. */
+  private final Map<String, String> drafts = new HashMap<>();
 
   /** The game a post is being sent to, until the forum answered. */
   private transient @Nullable GameThread sendingTo;
@@ -299,10 +324,24 @@ final class ForumGamesPanel extends JPanel {
     forumChoice.setSelectedItem(forum);
     forumChoice.addActionListener(e -> chooseForum((Forum) forumChoice.getSelectedItem()));
     add(newTopBar(), BorderLayout.NORTH);
+    initEditingNote();
     content.setOpaque(false);
     content.add(newSignInCard(), SIGNED_OUT);
     content.add(newGamesArea(), GAMES);
     add(content, BorderLayout.CENTER);
+  }
+
+  /** The note above the answer box while an own post is edited, with the way back. */
+  private void initEditingNote() {
+    editingNote.setOpaque(false);
+    final JLabel note = new JLabel("Editing your post");
+    note.setForeground(LookAndFeel.getAccentColor());
+    final JButton cancel = new JButton("Cancel");
+    LookAndFeel.setBorderlessButtonStyle(cancel);
+    cancel.addActionListener(e -> stopEditing());
+    editingNote.add(note);
+    editingNote.add(cancel);
+    editingNote.setVisible(false);
   }
 
   private static JToggleButton newTab(final String text) {
@@ -328,11 +367,27 @@ final class ForumGamesPanel extends JPanel {
 
   private void chooseForum(final Forum chosen) {
     if (!chosen.equals(forum)) {
+      // the draft's key holds the forum it was written for
+      keepDraft();
+      shownThread = null;
       forum = chosen;
       // the other forum's thread numbers are others
       ownGames = Set.of();
       view = View.MINE;
       refresh();
+    }
+  }
+
+  /** Keeps what the player wrote to the game shown, for when the player comes back to it. */
+  private void keepDraft() {
+    if (shownThread != null) {
+      final String draft = editing == null ? message.getText() : answerBeforeEdit;
+      final String key = OldForumGames.keyOf(forum.url(), shownThread.topicId());
+      if (draft.isBlank()) {
+        drafts.remove(key);
+      } else {
+        drafts.put(key, draft);
+      }
     }
   }
 
@@ -781,6 +836,7 @@ final class ForumGamesPanel extends JPanel {
 
   /** The game's side without a game: a quiet word in its middle. */
   private void showNoThread() {
+    keepDraft();
     shownThread = null;
     postsRequest++;
     threadCard.removeAll();
@@ -804,7 +860,9 @@ final class ForumGamesPanel extends JPanel {
    */
   private void showThread(final GameThread thread, final int page) {
     if (!thread.equals(shownThread)) {
+      keepDraft();
       shownThread = thread;
+      mentionable = List.of();
       threadCard.removeAll();
       threadCard.add(newThreadHeading(thread), BorderLayout.NORTH);
       threadCard.add(postsArea, BorderLayout.CENTER);
@@ -821,6 +879,7 @@ final class ForumGamesPanel extends JPanel {
         () -> page == 0 ? reader.newestPage(thread) : reader.page(thread, page),
         posts -> {
           if (request == postsRequest) {
+            mentionable = posts.playersBut(signedIn == null ? "" : signedIn.userslug());
             showWatched(posts.watched());
             final JScrollPane scroll = newPosts(thread, posts);
             showInPostsArea(scroll);
@@ -1051,19 +1110,79 @@ final class ForumGamesPanel extends JPanel {
     if (page.pageCount() > 1) {
       addLeftAligned(posts, newPageLinks(thread, page));
     }
+    if (isGameToStart(page)) {
+      addLeftAligned(posts, newStartHere(thread));
+    }
     final Dimension gap = new Dimension(0, MenuSpacing.S);
-    page.posts()
+    final int firstNew =
+        firstNewPost(page.posts(), ForumPostsSeen.seen(forum.url(), thread.topicId()).orElse(null));
+    IntStream.range(0, page.posts().size())
         .forEach(
-            post -> {
+            index -> {
+              if (index == firstNew) {
+                addLeftAligned(posts, newNewPostsLine(page.posts().size() - firstNew));
+              }
               addLeftAligned(posts, new Box.Filler(gap, gap, gap));
-              addLeftAligned(posts, newPost(post));
+              addLeftAligned(posts, newPost(page.posts().get(index)));
             });
+    page.posts().stream()
+        .map(ThreadPost::time)
+        .max(Comparator.naturalOrder())
+        .ifPresent(newest -> ForumPostsSeen.markSeen(forum.url(), thread.topicId(), newest));
     // as wide as the view, so the texts wrap; the posts at the top, each as high as it needs
     final JPanel shown = new ScrollableJPanel();
     shown.setLayout(new BorderLayout());
     shown.setOpaque(false);
     shown.add(posts, BorderLayout.NORTH);
     return newTransparentScroll(shown);
+  }
+
+  /**
+   * A thread where players gathered for a game not started yet: one page of posts, none with a save
+   * game. A long thread without saves is a chat, not a game to start.
+   */
+  @VisibleForTesting
+  static boolean isGameToStart(final ThreadPage page) {
+    return page.pageCount() == 1 && newestSave(page).isEmpty();
+  }
+
+  /** Start the game here: the setup of a game by forum whose first turn is posted to the thread. */
+  private JComponent newStartHere(final GameThread thread) {
+    final JButton start = new JButton("Start the game in this thread...");
+    LookAndFeel.setPrimaryButtonStyle(start);
+    start.setToolTipText(
+        "No save game here yet: choose the map and the nations; the first turn is posted here");
+    start.addActionListener(e -> model.showPbf(forum.name(), thread.topicId()));
+    final JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, MenuSpacing.M, MenuSpacing.S));
+    row.setOpaque(false);
+    row.add(start);
+    return row;
+  }
+
+  /**
+   * The first post written after the newest one the player saw here; -1 when all are seen or the
+   * game was never opened here, whose posts are not all new.
+   */
+  @VisibleForTesting
+  static int firstNewPost(final List<ThreadPost> posts, final @Nullable Instant seen) {
+    return seen == null
+        ? -1
+        : IntStream.range(0, posts.size())
+            .filter(index -> posts.get(index).time().isAfter(seen))
+            .findFirst()
+            .orElse(-1);
+  }
+
+  /** The line above the posts the player has not seen yet. */
+  private static JComponent newNewPostsLine(final int count) {
+    final JLabel line = new JLabel(count == 1 ? "1 new post" : count + " new posts");
+    line.setForeground(LookAndFeel.getAccentColor());
+    line.setFont(line.getFont().deriveFont(Font.BOLD));
+    line.setBorder(
+        BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, LookAndFeel.getAccentColor()),
+            BorderFactory.createEmptyBorder(MenuSpacing.S, MenuSpacing.M, MenuSpacing.XS, 0)));
+    return line;
   }
 
   private JComponent newPageLinks(final GameThread thread, final ThreadPage page) {
@@ -1112,7 +1231,17 @@ final class ForumGamesPanel extends JPanel {
     byline.add(NewsArea.newShrinkingLabel(post.author(), Font.BOLD, 0), BorderLayout.CENTER);
     final JLabel time = new JLabel(TIME.format(post.time()));
     time.setForeground(LookAndFeel.getSecondaryTextColor());
-    byline.add(time, BorderLayout.EAST);
+    final JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, MenuSpacing.XS, 0));
+    tools.setOpaque(false);
+    tools.add(time);
+    tools.add(newPostTool("Quote", "Quotes the post in your answer", () -> quote(post)));
+    if (own && post.pid() > 0) {
+      tools.add(newPostTool("Edit", "Changes the text of your post", () -> edit(post)));
+      tools.add(
+          newPostTool(
+              "Delete", "Deletes your post; a moderator can restore it", () -> delete(post)));
+    }
+    byline.add(tools, BorderLayout.EAST);
     row.add(byline, BorderLayout.NORTH);
     final ForumPost text = new ForumPost(post.html(), forumAddress());
     final JPanel body = new JPanel(new BorderLayout(0, MenuSpacing.XS));
@@ -1145,6 +1274,104 @@ final class ForumGamesPanel extends JPanel {
       row.add(saves, BorderLayout.SOUTH);
     }
     return row;
+  }
+
+  private static JButton newPostTool(final String text, final String tip, final Runnable action) {
+    final JButton tool = new JButton(text);
+    LookAndFeel.setBorderlessButtonStyle(tool);
+    LookAndFeel.setSmallStyle(tool);
+    tool.setToolTipText(tip);
+    tool.addActionListener(e -> action.run());
+    return tool;
+  }
+
+  /** Adds the post's first lines as a quote to the answer, with its author named. */
+  private void quote(final ThreadPost post) {
+    final String before = message.getText().isBlank() ? "" : message.getText().stripTrailing();
+    message.setText((before.isEmpty() ? "" : before + "\n\n") + quoteOf(post) + "\n\n");
+    message.setCaretPosition(message.getText().length());
+    editor.showWriting();
+    message.requestFocusInWindow();
+  }
+
+  /** The post as a Markdown quote naming its author, its first lines only. */
+  @VisibleForTesting
+  static String quoteOf(final ThreadPost post) {
+    final List<String> lines = post.text().strip().lines().toList();
+    return "@"
+        + post.authorSlug()
+        + " wrote:\n"
+        + lines.stream()
+            .limit(QUOTED_LINES)
+            .map(line -> ("> " + line).stripTrailing())
+            .collect(Collectors.joining("\n"))
+        + (lines.size() > QUOTED_LINES ? "\n> …" : "");
+  }
+
+  /** Loads the text of the player's own post into the answer box, where Save edit replaces it. */
+  private void edit(final ThreadPost post) {
+    final NodeBbGameThreads reader = newReader();
+    final GameThread thread = shownThread;
+    sendStatus.setText("Reading your post...");
+    inBackground(
+        () -> reader.rawPost(post.pid()),
+        raw -> {
+          if (!isSameGame(thread, shownThread)) {
+            return;
+          }
+          if (editing == null) {
+            answerBeforeEdit = message.getText();
+          }
+          editing = post;
+          message.setText(raw);
+          message.setCaretPosition(raw.length());
+          editor.showWriting();
+          sendButton.setText(SAVE_EDIT);
+          editingNote.setVisible(true);
+          sendStatus.setText("");
+        },
+        error -> sendStatus.setText("Your post could not be read: " + error));
+  }
+
+  /** Back to the answer that was written before the edit started. */
+  private void stopEditing() {
+    editing = null;
+    message.setText(answerBeforeEdit);
+    answerBeforeEdit = "";
+    sendButton.setText(SEND);
+    editingNote.setVisible(false);
+  }
+
+  /** Deletes the player's own post once the player confirmed it. */
+  private void delete(final ThreadPost post) {
+    final GameThread thread = shownThread;
+    if (thread == null
+        || JOptionPane.showConfirmDialog(
+                this,
+                "Delete your post of " + TIME.format(post.time()) + "? A moderator can restore it.",
+                "Delete your post",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE)
+            != JOptionPane.OK_OPTION) {
+      return;
+    }
+    final NodeBbGameThreads writer = newReader();
+    sendStatus.setText("Deleting...");
+    inBackground(
+        () -> {
+          writer.deletePost(post.pid());
+          return post;
+        },
+        deleted -> {
+          sendStatus.setText("Deleted.");
+          if (editing != null && editing.pid() == deleted.pid()) {
+            stopEditing();
+          }
+          if (isSameGame(thread, shownThread)) {
+            showThread(shownThread, 0);
+          }
+        },
+        error -> sendStatus.setText("Not deleted: " + error));
   }
 
   /** The forum's address, which the links and pictures of its posts are relative to. */
@@ -1206,7 +1433,14 @@ final class ForumGamesPanel extends JPanel {
                 MenuSpacing.M, MenuSpacing.L, MenuSpacing.M, MenuSpacing.L)));
     // also back to Write: a preview would show the other game's answer
     editor.clear();
+    editing = null;
+    answerBeforeEdit = "";
+    sendButton.setText(SEND);
+    // what the player wrote to this game before going to another one
+    message.setText(drafts.getOrDefault(OldForumGames.keyOf(forum.url(), thread.topicId()), ""));
     composer.add(editor, BorderLayout.CENTER);
+    editingNote.setVisible(false);
+    composer.add(editingNote, BorderLayout.NORTH);
     final JPanel actions = new JPanel(new BorderLayout(MenuSpacing.S, 0));
     actions.setOpaque(false);
     final JButton attach = new JButton("Attach save game...");
@@ -1280,6 +1514,10 @@ final class ForumGamesPanel extends JPanel {
    * posts. The answer is told also when the player went to another game meanwhile.
    */
   private void send() {
+    if (editing != null) {
+      saveEdit(editing);
+      return;
+    }
     final GameThread thread = shownThread;
     final String text = message.getText().strip();
     final Path save = attachedSave;
@@ -1305,6 +1543,10 @@ final class ForumGamesPanel extends JPanel {
           if (message.getText().strip().equals(text)) {
             editor.clear();
           }
+          // kept as a draft when the player went to another game before the forum answered
+          drafts.computeIfPresent(
+              OldForumGames.keyOf(forum.url(), thread.topicId()),
+              (key, draft) -> draft.strip().equals(text) ? null : draft);
           if (Objects.equals(attachedSave, save)) {
             attachedSave = null;
             attachment.setText("");
@@ -1325,6 +1567,36 @@ final class ForumGamesPanel extends JPanel {
             attachedSave = save;
             attachment.setText(save == null ? "" : String.valueOf(save.getFileName()));
           }
+        });
+  }
+
+  /** Replaces the text of the player's own post with the answer box's, then shows the game. */
+  private void saveEdit(final ThreadPost post) {
+    final GameThread thread = shownThread;
+    final String text = message.getText().strip();
+    if (thread == null || text.isEmpty()) {
+      sendStatus.setText("Write the new text of your post, or Cancel.");
+      return;
+    }
+    sendButton.setEnabled(false);
+    sendStatus.setText("Saving...");
+    final NodeBbGameThreads writer = newReader();
+    inBackground(
+        () -> {
+          writer.editPost(post.pid(), text);
+          return post;
+        },
+        edited -> {
+          sendButton.setEnabled(true);
+          sendStatus.setText("Saved.");
+          if (isSameGame(thread, shownThread) && editing == post) {
+            stopEditing();
+            showThread(shownThread, 0);
+          }
+        },
+        error -> {
+          sendButton.setEnabled(true);
+          sendStatus.setText("Not saved: " + error);
         });
   }
 

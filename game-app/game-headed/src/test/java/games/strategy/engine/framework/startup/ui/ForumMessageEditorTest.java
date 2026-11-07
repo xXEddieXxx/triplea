@@ -24,7 +24,21 @@ final class ForumMessageEditorTest {
   private final List<Path> attached = new ArrayList<>();
   private final ForumMessageEditor editor =
       new ForumMessageEditor(
-          "message", () -> URI.create("https://forums.triplea-game.org/"), attached::add);
+          "message", () -> URI.create("https://forums.triplea-game.org/"), attached::add, List::of);
+
+  @DisplayName("A mention stands apart from the word before it and from the next one")
+  @Test
+  void mentionStandsApart() {
+    final List<String> mentions =
+        List.of(
+            ForumMessageEditor.mentionOf("", 0, "ann"),
+            ForumMessageEditor.mentionOf("Your turn", 9, "ann"),
+            ForumMessageEditor.mentionOf("Your turn ", 10, "ann"));
+
+    assertThat(mentions)
+        .as("at the start, after a word, after a space")
+        .containsExactly("@ann ", " @ann ", "@ann ");
+  }
 
   @DisplayName("Text copied from an office program pastes as text, not as the picture with it")
   @Test

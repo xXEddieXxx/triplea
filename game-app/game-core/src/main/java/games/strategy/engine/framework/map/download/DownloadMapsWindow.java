@@ -12,6 +12,7 @@ import games.strategy.engine.framework.map.download.MapPreviews.Caches;
 import games.strategy.engine.framework.map.download.MapRow.Actions;
 import games.strategy.engine.framework.map.download.MapTagFilter.Tag;
 import games.strategy.engine.framework.map.file.system.loader.InstalledMapsListing;
+import games.strategy.engine.framework.map.file.system.loader.ZippedMapsExtractor;
 import games.strategy.engine.framework.map.listing.MapListingFetcher;
 import games.strategy.engine.framework.ui.BackBar;
 import games.strategy.engine.framework.ui.MainWindowPages;
@@ -25,6 +26,7 @@ import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.Serial;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -34,14 +36,17 @@ import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.PlainDocument;
@@ -385,6 +390,14 @@ public class DownloadMapsWindow extends JFrame {
             .foregroundColor(LookAndFeel.getSecondaryTextColor())
             .build());
     makeYourOwn.add(mapCreator);
+    final JButton importZip =
+        new JButtonBuilder()
+            .title("Import a map zip...")
+            .toolTip("Installs a map from a zip file on this computer")
+            .actionListener(this::importMapZip)
+            .build();
+    LookAndFeel.setBorderlessButtonStyle(importZip);
+    makeYourOwn.add(importZip);
     return new JPanelBuilder()
         .border(LookAndFeel.newFooterBorder())
         .borderLayout()
@@ -396,6 +409,39 @@ public class DownloadMapsWindow extends JFrame {
                 .actionListener(this::close)
                 .build())
         .build();
+  }
+
+  /** Unzips a map from a zip file on this computer into the maps folder. */
+  private void importMapZip() {
+    final JFileChooser chooser = new JFileChooser();
+    chooser.setFileFilter(new FileNameExtensionFilter("Map zip files", "zip"));
+    if (chooser.showOpenDialog(content) != JFileChooser.APPROVE_OPTION) {
+      return;
+    }
+    final Path zip = chooser.getSelectedFile().toPath();
+    final Optional<Path> mapFolder =
+        Interruptibles.awaitResult(
+                () ->
+                    BackgroundTaskRunner.runInBackgroundAndReturn(
+                        "Importing " + zip.getFileName() + "...",
+                        () -> ZippedMapsExtractor.importMapZip(zip)))
+            .result
+            .flatMap(folder -> folder);
+    if (mapFolder.isPresent()) {
+      JOptionPane.showMessageDialog(
+          content,
+          "The map is installed in " + mapFolder.get() + ". Its games are in the game list.",
+          "Map imported",
+          JOptionPane.INFORMATION_MESSAGE);
+    } else {
+      JOptionPane.showMessageDialog(
+          content,
+          "TripleA could not unzip "
+              + zip.getFileName()
+              + ". If a map of that name is installed, uninstall it first.",
+          "Map not imported",
+          JOptionPane.WARNING_MESSAGE);
+    }
   }
 
   @VisibleForTesting

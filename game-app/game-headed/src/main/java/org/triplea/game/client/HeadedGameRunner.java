@@ -25,6 +25,7 @@ import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.engine.framework.map.download.DownloadMapsWindow;
 import games.strategy.engine.framework.map.file.system.loader.ZippedMapsExtractor;
 import games.strategy.engine.framework.startup.mc.ServerModel;
+import games.strategy.engine.framework.startup.ui.ForumTurnNotifier;
 import games.strategy.engine.framework.startup.ui.panels.main.HeadedServerSetupModel;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
 import games.strategy.engine.framework.system.HttpProxy;
@@ -191,6 +192,7 @@ public final class HeadedGameRunner {
                 showMainFrame();
                 gameSelectorModel.setReadyForSaveLoad();
                 UpdateChecks.launch(headedServerSetupModel.getUi());
+                ForumTurnNotifier.start();
               });
         });
   }

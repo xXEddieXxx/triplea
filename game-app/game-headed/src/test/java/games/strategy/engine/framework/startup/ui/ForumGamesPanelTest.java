@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
@@ -231,6 +232,102 @@ final class ForumGamesPanelTest {
     assertThat(buttonOf(page, "Send").isEnabled()).as("the next post may be sent").isTrue();
   }
 
+  @DisplayName(
+      "Edit loads the own post, Cancel brings the answer back, Save edit replaces the post")
+  @Test
+  void ownPostIsEdited() throws Exception {
+    ClientSetting.tripleaForumSession.setValueAndFlush(SESSION.toCharArray());
+    forum.stubFor(
+        get(urlEqualTo("/api/topic/101/global?page=1&sort=oldest_to_newest"))
+            .willReturn(
+                aResponse()
+                    .withBody(
+                        """
+                        {"posts": [{"timestamp": 1700000000000, "pid": 55,
+                          "user": {"username": "Ann", "userslug": "ann"}, "content": "<p>Hi all</p>"}],
+                         "pagination": {"currentPage": 1, "pageCount": 1}}
+                        """)));
+    forum.stubFor(
+        get(urlEqualTo("/api/v3/posts/55/raw"))
+            .willReturn(aResponse().withBody("{\"response\": {\"content\": \"Hi all\"}}")));
+    forum.stubFor(
+        get(urlEqualTo("/api/config"))
+            .withHeader("Cookie", equalTo("express.sid=" + SESSION))
+            .willReturn(aResponse().withBody("{\"uid\": 7, \"csrf_token\": \"token-1\"}")));
+    forum.stubFor(
+        put(urlEqualTo("/api/v3/posts/55"))
+            .willReturn(aResponse().withBody("{\"status\": {\"code\": \"ok\"}}")));
+    final ForumGamesPanel page = givenPage(ANN_SIGNS_IN);
+    SwingUtilities.invokeAndWait(page::refresh);
+    awaitGames(page, "<html><b>Global 1940</b>");
+    SwingUtilities.invokeAndWait(() -> page.getThreads().setSelectedIndex(0));
+    final JTextArea message = composerOf(page);
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .until(() -> componentsOf(page).anyMatch(component -> isButton(component, "Edit")));
+    SwingUtilities.invokeAndWait(
+        () -> {
+          message.setText("An answer");
+          buttonOf(page, "Edit").doClick();
+        });
+    await().atMost(Duration.ofSeconds(10)).until(() -> "Hi all".equals(message.getText()));
+
+    SwingUtilities.invokeAndWait(() -> buttonOf(page, "Cancel").doClick());
+    final String afterCancel = message.getText();
+    SwingUtilities.invokeAndWait(() -> buttonOf(page, "Edit").doClick());
+    await().atMost(Duration.ofSeconds(10)).until(() -> "Hi all".equals(message.getText()));
+    SwingUtilities.invokeAndWait(
+        () -> {
+          message.setText("Hi everyone");
+          buttonOf(page, "Save edit").doClick();
+        });
+
+    assertThat(afterCancel).as("Cancel brings the answer back").isEqualTo("An answer");
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                forum.verify(
+                    putRequestedFor(urlEqualTo("/api/v3/posts/55"))
+                        .withHeader("x-csrf-token", equalTo("token-1"))
+                        .withRequestBody(equalToJson("{\"content\": \"Hi everyone\"}"))));
+  }
+
+  @DisplayName("What was written to a game comes back after another game was shown")
+  @Test
+  void answerIsKeptPerGame() throws Exception {
+    ClientSetting.tripleaForumSession.setValueAndFlush(SESSION.toCharArray());
+    forum.stubFor(
+        get(urlEqualTo("/api/user/ann/topics"))
+            .willReturn(
+                aResponse()
+                    .withBody(
+                        """
+                        {"topics": [
+                          {"tid": 101, "slug": "101/global", "title": "Global 1940", "cid": 45,
+                           "lastposttime": 1700000000000, "postcount": 4},
+                          {"tid": 102, "slug": "102/pacific", "title": "Pacific", "cid": 45,
+                           "lastposttime": 1690000000000, "postcount": 2}]}
+                        """)));
+    final ForumGamesPanel page = givenPage(ANN_SIGNS_IN);
+    SwingUtilities.invokeAndWait(page::refresh);
+    await().atMost(Duration.ofSeconds(10)).until(() -> page.getThreads().getModel().getSize() == 2);
+    SwingUtilities.invokeAndWait(() -> page.getThreads().setSelectedIndex(0));
+    final JTextArea message = composerOf(page);
+
+    SwingUtilities.invokeAndWait(
+        () -> {
+          message.setText("Draft for Global");
+          page.getThreads().setSelectedIndex(1);
+        });
+    final String otherGame = message.getText();
+    SwingUtilities.invokeAndWait(() -> page.getThreads().setSelectedIndex(0));
+
+    assertThat(List.of(otherGame, message.getText()))
+        .as("the other game's answer starts empty; the first game's comes back")
+        .containsExactly("", "Draft for Global");
+  }
+
   @DisplayName("A post not sent comes back to its game, also when the game's list was read again")
   @Test
   void postNotSentComesBackToItsGame() throws Exception {
@@ -281,11 +378,17 @@ final class ForumGamesPanelTest {
                 assertThat(message.getText())
                     .as("the composer made anew for the game gets back what was not sent")
                     .isEqualTo("Your turn, Bob!"));
-    assertThat(componentsOf(page))
-        .as("said for the game shown, not as of another game")
-        .filteredOn(JTextArea.class::isInstance)
-        .extracting(component -> ((JTextArea) component).getText())
-        .anyMatch(text -> text.startsWith("Not sent: "));
+    // the draft brings the text back at once, the forum's answer comes later
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                assertThat(componentsOf(page))
+                    .as("said for the game shown, not as of another game")
+                    .filteredOn(JTextArea.class::isInstance)
+                    .extracting(component -> ((JTextArea) component).getText())
+                    .anyMatch(text -> text.startsWith("Not sent: ")));
+    assertThat(message.getText()).as("not doubled by the draft").isEqualTo("Your turn, Bob!");
   }
 
   @DisplayName("My games: those waiting for the player first, and filters for whose move it is")
@@ -376,7 +479,68 @@ final class ForumGamesPanelTest {
   }
 
   private static ThreadPost givenPost(final List<SaveGame> saveGames) {
-    return new ThreadPost("Bob", "bob", "B", "#123456", Instant.EPOCH, "", "", saveGames);
+    return givenPostAt(Instant.EPOCH, saveGames);
+  }
+
+  private static ThreadPost givenPostAt(final Instant time, final List<SaveGame> saveGames) {
+    return new ThreadPost("Bob", "bob", "B", "#123456", time, "", "", saveGames, 0);
+  }
+
+  @DisplayName("A game is started in a short thread without a save, not in a game or a long chat")
+  @Test
+  void gameIsStartedInShortThreadWithoutSave() {
+    final SaveGame save = new SaveGame(URI.create("http://forum/turn.tsvg"), "turn.tsvg", "");
+    final List<Boolean> toStart =
+        List.of(
+            ForumGamesPanel.isGameToStart(
+                new ThreadPage(List.of(givenPost(List.of())), 1, 1, false)),
+            ForumGamesPanel.isGameToStart(
+                new ThreadPage(List.of(givenPost(List.of(save))), 1, 1, false)),
+            ForumGamesPanel.isGameToStart(
+                new ThreadPage(List.of(givenPost(List.of())), 1, 3, false)));
+
+    assertThat(toStart)
+        .as("players gathered; a game with its save; a chat of three pages")
+        .containsExactly(true, false, false);
+  }
+
+  @DisplayName("A quote names the author and takes the first 12 lines of a long post")
+  @Test
+  void quoteTakesFirstLines() {
+    final String text =
+        IntStream.rangeClosed(1, 14)
+            .mapToObj(line -> "line " + line)
+            .collect(Collectors.joining("\n"));
+    final ThreadPost post =
+        new ThreadPost("Bob", "bob", "B", "#123456", Instant.EPOCH, text, "", List.of(), 1);
+
+    final String quote = ForumGamesPanel.quoteOf(post);
+
+    assertThat(quote.lines().toList())
+        .as("the author, 12 quoted lines, and a mark that more followed")
+        .startsWith("@bob wrote:", "> line 1")
+        .endsWith("> line 12", "> …")
+        .hasSize(14);
+  }
+
+  @DisplayName("The posts after the newest one seen here are new; in a game never opened, none")
+  @Test
+  void newPostsStartAfterTheNewestSeen() {
+    final List<ThreadPost> posts =
+        List.of(
+            givenPostAt(Instant.ofEpochMilli(100), List.of()),
+            givenPostAt(Instant.ofEpochMilli(200), List.of()),
+            givenPostAt(Instant.ofEpochMilli(300), List.of()));
+
+    final List<Integer> firstNew =
+        List.of(
+            ForumGamesPanel.firstNewPost(posts, Instant.ofEpochMilli(100)),
+            ForumGamesPanel.firstNewPost(posts, Instant.ofEpochMilli(300)),
+            ForumGamesPanel.firstNewPost(posts, null));
+
+    assertThat(firstNew)
+        .as("after the first post; none after the last; a game never opened marks none")
+        .containsExactly(1, -1, -1);
   }
 
   @DisplayName("The search narrows the games to those whose title holds it")

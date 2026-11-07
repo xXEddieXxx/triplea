@@ -158,6 +158,22 @@ enum ClientSettingSwingUiBinding implements GameSettingUiBinding<JComponent> {
     }
   },
 
+  SOUND_THEME_BINDING(
+      "Sound theme",
+      SettingGroup.SOUND,
+      "Which set of sounds plays. Follow the map uses the era the map chose, mostly WW2.") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return selectionBox(
+          ClientSetting.soundTheme,
+          SoundTheme.class,
+          List.of(SoundTheme.values()),
+          Optional::of,
+          soundTheme -> soundTheme,
+          SoundTheme::getLabel);
+    }
+  },
+
   MUTE_IN_BACKGROUND_BINDING(
       "Mute in the background",
       SettingGroup.SOUND,
@@ -335,6 +351,28 @@ Color blind friendly uses orange/blue instead of red/green.""") {
     @Override
     public SelectionComponent<JComponent> newSelectionComponent() {
       return booleanCheckBox(ClientSetting.alertOnMyTurn);
+    }
+  },
+
+  NOTIFY_FORUM_TURNS_BINDING(
+      "Tell me of my turn in forum games",
+      SettingGroup.NOTIFICATIONS,
+      "While TripleA is open, a message from the system tray when another player posted last in"
+          + " one of your play by forum games; the forums are asked every 30 minutes") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.notifyForumTurns);
+    }
+  },
+
+  REPLAY_OTHERS_TURNS_ON_LOAD_BINDING(
+      "Show the others' turns after loading",
+      SettingGroup.NOTIFICATIONS,
+      "After loading a save or joining a game, your first turn opens the history where your last"
+          + " turn ended, so you can step through what the others did since") {
+    @Override
+    public SelectionComponent<JComponent> newSelectionComponent() {
+      return booleanCheckBox(ClientSetting.replayOthersTurnsOnLoad);
     }
   },
 

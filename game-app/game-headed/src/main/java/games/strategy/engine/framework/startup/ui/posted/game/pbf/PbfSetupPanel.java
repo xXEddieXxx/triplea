@@ -90,6 +90,12 @@ public class PbfSetupPanel extends SetupPanel implements Observer {
     loadAll();
   }
 
+  /** The game's turns go to the thread, eg one chosen on the Play by forum page; it stays. */
+  public void playInThread(final String forumName, final int topicId) {
+    forumPosterEditorViewModel.setForumSelection(forumName);
+    forumPosterEditorViewModel.chooseExistingThread(String.valueOf(topicId));
+  }
+
   private void createComponents() {
     final JScrollPane scrollPane = new JScrollPane(localPlayerPanel);
     localPlayerPanel.addHierarchyListener(

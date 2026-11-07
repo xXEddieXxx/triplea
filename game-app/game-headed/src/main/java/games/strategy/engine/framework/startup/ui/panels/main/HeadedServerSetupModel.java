@@ -166,6 +166,17 @@ public class HeadedServerSetupModel {
     setGameTypePanel(new PbfSetupPanel(gameSelectorModel));
   }
 
+  /**
+   * The setup of a game by forum whose turns go to the thread, eg one where players gathered for a
+   * game that has no save yet: the player chooses the map and the nations, the first turn is posted
+   * there.
+   */
+  public void showPbf(final String forumName, final int topicId) {
+    final PbfSetupPanel setup = new PbfSetupPanel(gameSelectorModel);
+    setup.playInThread(forumName, topicId);
+    setGameTypePanel(setup);
+  }
+
   public void showPbem() {
     setGameTypePanel(new PbemSetupPanel(gameSelectorModel));
   }

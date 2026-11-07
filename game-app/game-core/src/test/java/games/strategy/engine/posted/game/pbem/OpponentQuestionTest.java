@@ -13,10 +13,13 @@ import games.strategy.engine.data.GameStep;
 import games.strategy.engine.framework.IGame;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
 import games.strategy.triplea.xml.TestMapGameData;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.stream.StreamSupport;
 import javax.swing.AbstractButton;
+import javax.swing.JPanel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -86,5 +89,26 @@ final class OpponentQuestionTest {
   void localGameAsksNobody() {
     assertThat(question.isOpponentsDecision(other)).as("no forum, no email").isFalse();
     assertThat(question.newAskButton(other, () -> "?")).isEmpty();
+  }
+
+  @DisplayName("What the player sees becomes a picture; nothing shown, none")
+  @Test
+  void screenshotOfWhatIsShown() throws Exception {
+    final JPanel shown = new JPanel();
+    shown.setSize(40, 30);
+
+    final Optional<Path> picture = OpponentQuestion.screenshotOf(shown);
+
+    try {
+      assertThat(picture.map(file -> file.toFile().length()))
+          .as("a PNG file of the panel")
+          .hasValueSatisfying(size -> assertThat(size).isPositive());
+      assertThat(OpponentQuestion.screenshotOf(null)).as("nothing shown").isEmpty();
+      assertThat(OpponentQuestion.screenshotOf(new JPanel())).as("not laid out yet").isEmpty();
+    } finally {
+      if (picture.isPresent()) {
+        Files.deleteIfExists(picture.get());
+      }
+    }
   }
 }

@@ -216,6 +216,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
   @Getter private @Nullable HistoryPanel historyPanel;
   private final AtomicBoolean inHistory = new AtomicBoolean(false);
   private final AtomicBoolean inGame = new AtomicBoolean(true);
+  private final AtomicBoolean firstLocalTurnSeen = new AtomicBoolean(false);
   private @Nullable HistorySynchronizer historySyncher;
   @Getter private UiContext uiContext;
   private final JPanel mapAndChatPanel;
@@ -933,6 +934,31 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
         }
       }
     }
+    // only the first turn here can follow turns played elsewhere, eg in a loaded save
+    if (localPlayers.playing(player)
+        && firstLocalTurnSeen.compareAndSet(false, true)
+        && ClientSetting.replayOthersTurnsOnLoad.getSetting()) {
+      showOthersTurnsOffEdt();
+    }
+  }
+
+  /** Opens the history where the last turn of a player at this computer ended. */
+  private void showOthersTurnsOffEdt() {
+    final Optional<Step> start;
+    try (GameData.Unlocker ignored = data.acquireReadLock()) {
+      start = data.getHistory().getFirstStepSinceLastTurnOf(localPlayers::playing);
+    }
+    start.ifPresent(
+        step -> {
+          showHistoryOffEdt();
+          // after the history panel's own selection of the last node, which it queued on the EDT
+          SwingUtilities.invokeLater(
+              () -> {
+                if (historyPanel != null) {
+                  historyPanel.navigateTo(step);
+                }
+              });
+        });
   }
 
   private void showGameOffEdt() {
@@ -1452,7 +1478,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           final String optionAttack = "Attack";
           final String optionNone = "None";
           final Object[] options =
-              new OpponentQuestion(game)
+              new OpponentQuestion(game, () -> mapPanel)
                   .newAskButton(
                       decider,
                       () ->
@@ -1603,7 +1629,7 @@ public final class TripleAFrame extends JFrame implements QuitHandler {
           noneButton.addActionListener(
               e -> getOptionPane((JComponent) e.getSource()).setValue(noneButton));
           final Object[] options =
-              new OpponentQuestion(game)
+              new OpponentQuestion(game, () -> mapPanel)
                   .newAskButton(
                       decider,
                       () ->

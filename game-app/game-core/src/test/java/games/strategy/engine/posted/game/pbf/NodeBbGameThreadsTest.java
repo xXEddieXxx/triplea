@@ -107,7 +107,7 @@ final class NodeBbGameThreadsTest extends AbstractClientSettingTestCase {
   private static final String PAGE =
       """
       {"posts": [
-        {"timestamp": 1700000000000,
+        {"timestamp": 1700000000000, "pid": 901,
          "user": {"username": "ann", "userslug": "ann", "displayname": "Ann Lee",
                   "icon:text": "A", "icon:bgColor": "#ffc107"},
          "content": "<h3>TripleA Turn Summary: Russians round 3</h3><p>Moves&nbsp;done<br>Attack</p>\
@@ -215,6 +215,10 @@ final class NodeBbGameThreadsTest extends AbstractClientSettingTestCase {
         .as("the page and how many there are")
         .containsExactly(2, 3);
     assertThat(page.watched()).as("the player follows the thread").isTrue();
+    assertThat(page.posts().getFirst().pid()).as("the post's number, to edit it").isEqualTo(901);
+    assertThat(List.of(page.playersBut("bob"), page.playersBut("ann")))
+        .as("Ann to mention, but not when Ann writes")
+        .containsExactly(List.of("ann"), List.of());
   }
 
   @DisplayName("Only save games the forum itself keeps count, links elsewhere do not")
@@ -450,6 +454,35 @@ final class NodeBbGameThreadsTest extends AbstractClientSettingTestCase {
             .withHeader("Cookie", equalTo("express.sid=" + SESSION)));
     forum.verify(
         deleteRequestedFor(urlEqualTo("/api/v3/topics/101/follow"))
+            .withHeader("Cookie", equalTo("express.sid=" + SESSION)));
+  }
+
+  @DisplayName("The player's own post is read as written, edited and deleted with the token")
+  @Test
+  void ownPostIsEditedAndDeleted() throws Exception {
+    givenSessionWithToken();
+    forum.stubFor(
+        get(urlEqualTo("/api/v3/posts/55/raw"))
+            .willReturn(aResponse().withBody("{\"response\": {\"content\": \"**Hi** all\"}}")));
+    forum.stubFor(
+        put(urlEqualTo("/api/v3/posts/55"))
+            .withHeader("x-csrf-token", equalTo("token-1"))
+            .willReturn(aResponse().withBody("{\"status\": {\"code\": \"ok\"}}")));
+    forum.stubFor(
+        delete(urlEqualTo("/api/v3/posts/55/state"))
+            .withHeader("x-csrf-token", equalTo("token-1"))
+            .willReturn(aResponse().withBody("{\"status\": {\"code\": \"ok\"}}")));
+
+    final String raw = givenSignedInReader().rawPost(55);
+    givenSignedInReader().editPost(55, "**Hi** everyone");
+    givenSignedInReader().deletePost(55);
+
+    assertThat(raw).as("the Markdown as written, to edit").isEqualTo("**Hi** all");
+    forum.verify(
+        putRequestedFor(urlEqualTo("/api/v3/posts/55"))
+            .withRequestBody(equalToJson("{\"content\": \"**Hi** everyone\"}")));
+    forum.verify(
+        deleteRequestedFor(urlEqualTo("/api/v3/posts/55/state"))
             .withHeader("Cookie", equalTo("express.sid=" + SESSION)));
   }
 

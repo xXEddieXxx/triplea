@@ -6,6 +6,7 @@ import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.GameRunner;
 import games.strategy.triplea.ResourceLoader;
 import games.strategy.triplea.settings.ClientSetting;
+import games.strategy.triplea.settings.SoundTheme;
 import java.awt.KeyboardFocusManager;
 import java.net.URI;
 import java.net.URL;
@@ -267,8 +268,20 @@ public class ClipPlayer {
         && KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow() == null;
   }
 
-  private Optional<URL> loadClipPath(final String pathName) {
-    final List<URL> availableSounds = sounds.computeIfAbsent(pathName, this::parseClipPaths);
+  @VisibleForTesting
+  Optional<URL> loadClipPath(final String pathName) {
+    // a sound theme the player chose replaces the map's era and its clip overrides
+    final Optional<String> themeEra =
+        ClientSetting.soundTheme.getValue().flatMap(SoundTheme::getEraFolder);
+    final List<URL> availableSounds =
+        sounds.computeIfAbsent(
+            themeEra.orElse("") + "|" + pathName,
+            key ->
+                parseClipPaths(
+                    pathName,
+                    themeEra
+                        .map(era -> era + "/" + pathName)
+                        .orElseGet(() -> mapResourcePath(pathName))));
     if (availableSounds.isEmpty()) {
       return Optional.empty();
     }
@@ -292,13 +305,14 @@ public class ClipPlayer {
    * battle_aa_miss_02_just_aa_artillery. mp3<br>
    * phase_purchase_Germans=phase_purchase_Germans/game_start_Germans_01_anthem.mp3
    */
-  private List<URL> parseClipPaths(final String pathName) {
+  private String mapResourcePath(final String pathName) {
     // Check if there is a sound.properties path override for this resource
-    String resourcePath =
-        Optional.ofNullable(new SoundProperties(resourceLoader).getProperty(pathName))
-            .orElseGet(
-                () -> new SoundProperties(resourceLoader).getDefaultEraFolder() + "/" + pathName)
-            .replace('\\', '/');
+    return Optional.ofNullable(new SoundProperties(resourceLoader).getProperty(pathName))
+        .orElseGet(() -> new SoundProperties(resourceLoader).getDefaultEraFolder() + "/" + pathName)
+        .replace('\\', '/');
+  }
+
+  private List<URL> parseClipPaths(final String pathName, final String resourcePath) {
     final List<URL> availableSounds = new ArrayList<>();
     if ("NONE".equals(resourcePath)) {
       return availableSounds;

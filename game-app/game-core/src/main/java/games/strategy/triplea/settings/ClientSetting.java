@@ -185,6 +185,8 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
   // how loud the sounds play, in percent
   public static final ClientSetting<Integer> soundVolume =
       new IntegerClientSetting("SOUND_VOLUME", 100);
+  public static final ClientSetting<SoundTheme> soundTheme =
+      new EnumClientSetting<>(SoundTheme.class, "SOUND_THEME", SoundTheme.MAP);
   public static final BooleanClientSetting muteSoundInBackground =
       new BooleanClientSetting("MUTE_SOUND_IN_BACKGROUND", false);
   // flash the game window in the taskbar when the turn comes back to the player
@@ -194,6 +196,12 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
       new BooleanClientSetting("SHOW_RELIEF_IMAGES", true);
   public static final BooleanClientSetting showMapBlends =
       new BooleanClientSetting("SHOW_MAP_BLENDS", false);
+  // while TripleA is open, a message when another player posted last in one of the forum games
+  public static final BooleanClientSetting notifyForumTurns =
+      new BooleanClientSetting("NOTIFY_FORUM_TURNS", true);
+  // after loading a save, show in the history what the others did since the player's last turn
+  public static final BooleanClientSetting replayOthersTurnsOnLoad =
+      new BooleanClientSetting("REPLAY_OTHERS_TURNS_ON_LOAD", true);
   public static final BooleanClientSetting showEndOfTurnReport =
       new BooleanClientSetting("SHOW_END_OF_TURN_REPORT", true);
   public static final BooleanClientSetting showTriggeredNotifications =
@@ -285,6 +293,13 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
    */
   public static final ClientSetting<String> oldForumGames =
       new StringClientSetting("OLD_FORUM_GAMES", "");
+
+  /**
+   * The newest post the player saw of each game by forum, as "forum address#topic=epoch millis"
+   * entries separated by spaces; the forum's newer posts show as new.
+   */
+  public static final ClientSetting<String> forumPostsSeen =
+      new StringClientSetting("FORUM_POSTS_SEEN", "");
 
   private static final AtomicReference<Preferences> preferencesRef = new AtomicReference<>();
 

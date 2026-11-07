@@ -8,6 +8,9 @@ import games.strategy.engine.framework.startup.ui.ForumMessageEditor;
 import games.strategy.engine.posted.game.pbem.PbemMessagePoster;
 import games.strategy.engine.posted.game.pbf.IForumPoster;
 import games.strategy.engine.posted.game.pbf.NodeBbForumPoster;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.GameThread;
+import games.strategy.engine.posted.game.pbf.NodeBbGameThreads.Player;
 import games.strategy.engine.random.IRandomStats;
 import games.strategy.triplea.delegate.GameStepPropertiesHelper;
 import games.strategy.triplea.delegate.remote.IAbstractForumPosterDelegate;
@@ -16,9 +19,16 @@ import games.strategy.triplea.ui.history.HistoryLog;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -26,7 +36,11 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import lombok.extern.slf4j.Slf4j;
+import org.triplea.java.ThreadRunner;
 import org.triplea.swing.CollapsiblePanel;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.SwingAction;
@@ -40,6 +54,7 @@ import org.triplea.swing.jpanel.JPanelBuilder;
  * right here, so no window opens. What the summary holds is under "Summary options"; Done without
  * sending goes on without a post.
  */
+@Slf4j
 public final class ForumPosterComponent extends JPanel {
   private static final long serialVersionUID = 4754052934098190357L;
   private static final String DONE_WITHOUT_SENDING = "Done without sending";
@@ -48,10 +63,11 @@ public final class ForumPosterComponent extends JPanel {
   private PbemMessagePoster poster;
   private IGame game;
   private HistoryLog historyLog;
-  private final ForumMessageEditor editor =
-      new ForumMessageEditor(
-          "A message to the other players, optional; Preview shows it as the forum will",
-          this::forumAddress);
+  private final ForumMessageEditor editor;
+
+  /** The game's players who posted in its thread lately, to mention. */
+  private transient List<String> mentionable = List.of();
+
   private final JButton sendAndDoneButton = new JButton("Send & done");
   private final JButton doneWithoutSending;
   private final WrappingText status = new WrappingText();
@@ -71,6 +87,13 @@ public final class ForumPosterComponent extends JPanel {
     this.data = data;
     this.doneAction = doneAction;
     this.title = title;
+    editor =
+        new ForumMessageEditor(
+            "A message to the other players, optional; Preview shows it as the forum will",
+            this::forumAddress,
+            // a game by forum: pictures go up with the session of the Play by forum page
+            NodeBbForumPoster.availablePosters().contains(forumName()) ? this::attachPicture : null,
+            () -> this.mentionable);
 
     includeTerritoryCheckBox =
         new JCheckBox(SwingAction.of("Include territory summary", e -> updateHistoryLog()));
@@ -161,6 +184,7 @@ public final class ForumPosterComponent extends JPanel {
     removeAll();
     // the panel stays for the game: the next nation's turn starts with an empty message
     editor.clear();
+    readPlayersToMention();
 
     editor.setAlignmentX(LEFT_ALIGNMENT);
     editor.setPreferredSize(new Dimension(320, 170));
@@ -211,6 +235,67 @@ public final class ForumPosterComponent extends JPanel {
     addLeftAligned(status);
     validate();
     return this;
+  }
+
+  /** Uploads the picture to the game's forum and links it at the caret, as the forum's editor. */
+  private void attachPicture(final Path picture) {
+    final Optional<NodeBbGameThreads> client = NodeBbGameThreads.withSessionOf(forumName());
+    if (client.isEmpty()) {
+      status.setText("Sign in on the Play by forum page to add pictures.");
+      return;
+    }
+    status.setText("Uploading " + picture.getFileName() + "...");
+    inBackground(
+        () -> client.get().uploadPicture(picture),
+        address -> {
+          final JTextArea text = editor.getTextArea();
+          text.insert("![](" + address + ")", text.getCaretPosition());
+          status.setText("Picture added: Preview shows it as the post will.");
+        },
+        error -> status.setText("The picture was not uploaded: " + error));
+  }
+
+  private String forumName() {
+    return data.getProperties().get(IForumPoster.NAME, "");
+  }
+
+  /** The players who posted in the game's thread lately, but the player, read in the background. */
+  private void readPlayersToMention() {
+    final int topicId = data.getProperties().get(IForumPoster.TOPIC_ID, 0);
+    if (topicId <= 0 || !NodeBbForumPoster.availablePosters().contains(forumName())) {
+      return;
+    }
+    final String forum = forumName();
+    inBackground(
+        () ->
+            NodeBbGameThreads.withSessionOf(forum)
+                .map(client -> playersToMention(client, topicId))
+                .orElse(List.of()),
+        players -> mentionable = players,
+        error -> log.info("The game's players to mention were not read: {}", error));
+  }
+
+  private static List<String> playersToMention(final NodeBbGameThreads client, final int topicId) {
+    try {
+      return client
+          .newestPage(GameThread.of(topicId, "", ""))
+          .playersBut(client.signedInPlayer().map(Player::userslug).orElse(""));
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static <T> void inBackground(
+      final Callable<T> task, final Consumer<T> onDone, final Consumer<String> onError) {
+    ThreadRunner.runInNewThread(
+        () -> {
+          try {
+            final T result = task.call();
+            SwingUtilities.invokeLater(() -> onDone.accept(result));
+          } catch (final Exception e) {
+            SwingUtilities.invokeLater(() -> onError.accept(String.valueOf(e.getMessage())));
+          }
+        });
   }
 
   /** The game's forum, which links and pictures of the message's preview are relative to. */

@@ -124,17 +124,34 @@ final class SettingsPageTest {
             "Sound effects", "Volume", "Sound theme", "Mute in the background", "Single sounds");
   }
 
-  @DisplayName("The reset link resets the settings of the shown section")
+  @DisplayName("Save keeps the settings at once, without leaving Settings")
   @Test
-  void resetLinkResetsShownSection() throws Exception {
+  void saveKeepsSettingsAtOnce() throws Exception {
+    final SettingsPage page = givenSettingsPage();
+    SwingUtilities.invokeAndWait(() -> page.showSection(SettingType.AUDIO));
+    givenSoundEffectsTurnedOff(page);
+
+    SwingUtilities.invokeAndWait(() -> buttonOf(page.getComponent(), "Save").doClick());
+
+    assertThat(ClientSetting.soundEnabled.getSetting()).as("saved as switched").isFalse();
+    assertThat(textsOf(page.getComponent())).as("the page tells it saved").contains("Saved.");
+  }
+
+  @DisplayName("The reset button below the settings resets the settings of the shown section")
+  @Test
+  void resetButtonResetsShownSection() throws Exception {
     final SettingsPage page = givenSettingsPage();
     SwingUtilities.invokeAndWait(() -> page.showSection(SettingType.AUDIO));
     final JCheckBox soundEffects = givenSoundEffectsTurnedOff(page);
 
+    SwingUtilities.invokeAndWait(() -> buttonOf(page.getComponent(), "Save").doClick());
     SwingUtilities.invokeAndWait(
         () -> buttonOf(page.getComponent(), "Reset Audio to defaults").doClick());
 
     assertThat(soundEffects.isSelected()).as("sound is on by default").isTrue();
+    assertThat(textsOf(page.getComponent()))
+        .as("the defaults are not saved yet, so the page no longer says Saved")
+        .doesNotContain("Saved.");
   }
 
   private static SettingsPage givenSettingsPage() throws Exception {

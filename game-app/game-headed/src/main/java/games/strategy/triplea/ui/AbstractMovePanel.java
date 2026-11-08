@@ -263,24 +263,19 @@ public abstract class AbstractMovePanel extends ActionPanel {
 
   protected abstract boolean setCancelButton();
 
-  /**
-   * The title at the top and the moves made below it; the buttons that go on (Cancel, Undo All and
-   * Done) are in the game window's button bar.
-   */
+  /** The title and the buttons that go on (Cancel, Undo All and Done) above the moves made. */
   private JPanel movedUnitsPanel(final GamePlayer gamePlayer, final String actionLabel) {
     final JPanel top = new JPanel();
     top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
     this.actionLabel.setText(gamePlayer.getName() + actionLabel);
     top.add(SwingComponents.leftBox(this.actionLabel));
+    top.add(
+        setCancelButton()
+            ? newButtonRow(cancelMoveButton, undoAllButton, doneButton)
+            : newButtonRow(undoAllButton, doneButton));
     // Add any additional buttons on their own lines, since their text may be
     // arbitrarily long.
     getAdditionalButtons().forEach(top::add);
-
-    if (setCancelButton()) {
-      showButtons(cancelMoveButton, undoAllButton, doneButton);
-    } else {
-      showButtons(undoAllButton, doneButton);
-    }
 
     final JPanel movedUnitsPanel = new JPanel(new BorderLayout(0, 6));
     movedUnitsPanel.add(top, BorderLayout.NORTH);

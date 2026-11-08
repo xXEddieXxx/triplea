@@ -4,17 +4,13 @@ import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.GamePlayer;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
 import games.strategy.triplea.ui.panels.map.MapPanel;
-import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.io.Serial;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -28,8 +24,6 @@ import org.triplea.swing.SwingComponents;
 /** Abstract superclass for all action panels. */
 public abstract class ActionPanel extends JPanel {
   @Serial private static final long serialVersionUID = -5954576036704958641L;
-  // fired when the panel's buttons change, see getButtons
-  static final String BUTTONS_PROPERTY = "buttons";
   // the phase's title, eg "Germans Tech Roll", as a heading over what to do in it
   protected final JLabel actionLabel =
       new JLabelBuilder()
@@ -56,14 +50,6 @@ public abstract class ActionPanel extends JPanel {
 
   private CountDownLatch latch;
   private final Object latchLock = new Object();
-  private @Nullable JComponent buttons;
-  // the action label's text over the buttons in the button bar, see showButtons
-  private final JLabel barTitle =
-      new JLabelBuilder()
-          .bold()
-          .adjustFontSize(2)
-          .border(BorderFactory.createEmptyBorder(0, 0, 8, 0))
-          .build();
 
   protected ActionPanel(final GameData data, final MapPanel map) {
     this.data = data;
@@ -71,8 +57,6 @@ public abstract class ActionPanel extends JPanel {
     setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
     setBorder(BorderFactory.createEmptyBorder(10, 7, 8, 7));
     setMinimumSize(new Dimension(240, 0));
-    // a title changed later, eg "for bid", changes in the bar too
-    actionLabel.addPropertyChangeListener("text", e -> barTitle.setText(actionLabel.getText()));
   }
 
   protected ActionPanel(final TripleAFrame frame) {
@@ -89,44 +73,19 @@ public abstract class ActionPanel extends JPanel {
   }
 
   /**
-   * Shows the phase's title (the action label, eg "Germans Tech Roll") and below it the buttons
-   * that go on in this phase (eg Buy and Done) in the game window's button bar, at the same place
-   * in every phase, not in this panel; the buttons side by side, of equal width. Call it after
-   * setting the action label's text.
+   * The buttons that go on in this phase (eg Buy and Done) side by side, of equal width, as a row
+   * of this panel, where the panel adds it.
    */
-  protected void showButtons(final JButton... buttons) {
-    final JPanel buttonsPanel = new JPanel(new GridLayout(1, buttons.length, 8, 0));
+  protected static JPanel newButtonRow(final JButton... buttons) {
+    final JPanel row = new JPanel(new GridLayout(1, buttons.length, 8, 0));
+    row.setBorder(BorderFactory.createEmptyBorder(0, 5, 6, 0));
     for (final JButton button : buttons) {
-      buttonsPanel.add(button);
+      row.add(button);
     }
-    // the title shows in the bar, not twice
-    actionLabel.setVisible(false);
-    final JPanel bar = new JPanel(new BorderLayout());
-    bar.add(barTitle, BorderLayout.NORTH);
-    bar.add(buttonsPanel, BorderLayout.CENTER);
-    setButtons(bar);
-  }
-
-  private void setButtons(final @Nullable JComponent newButtons) {
-    final JComponent old = buttons;
-    buttons = newButtons;
-    firePropertyChange(BUTTONS_PROPERTY, old, newButtons);
-  }
-
-  /** The buttons this phase shows in the button bar, none while it waits for nothing. */
-  Optional<JComponent> getButtons() {
-    return Optional.ofNullable(buttons);
-  }
-
-  /**
-   * Also the buttons go: every panel empties itself before it shows a new state, and shows its
-   * buttons again with it.
-   */
-  @Override
-  public void removeAll() {
-    super.removeAll();
-    setButtons(null);
-    actionLabel.setVisible(true);
+    // as high as the buttons, also in a panel that hands out its spare height
+    row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+    row.setAlignmentX(LEFT_ALIGNMENT);
+    return row;
   }
 
   /**

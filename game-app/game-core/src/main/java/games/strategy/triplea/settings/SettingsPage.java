@@ -5,14 +5,15 @@ import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.ui.FlatLineBorder;
 import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import games.strategy.triplea.settings.SaveFunction.SaveResult;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
-import java.awt.font.TextAttribute;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +30,7 @@ import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
@@ -74,6 +76,9 @@ final class SettingsPage {
   private final JTextField searchField = new JTextField();
 
   private final JPanel column = new ContentColumn();
+  // resets the section shown; off while search results show, which are of several sections
+  private final JButton resetButton = new JButton();
+  private final JLabel savedNote = new JLabel();
   private final JScrollPane contentScrollPane;
   @Getter private final JComponent component;
   private SettingType selectedSection = SettingType.GAMEPLAY;
@@ -111,8 +116,45 @@ final class SettingsPage {
             .borderLayout()
             .addWest(newNavigation())
             .addCenter(contentScrollPane)
+            .addSouth(newFooter())
             .build();
     showContent();
+  }
+
+  /** Below the settings: what saving did on the left, Reset to defaults and Save on the right. */
+  private JComponent newFooter() {
+    resetButton.setToolTipText("Sets the settings of the section shown back to their defaults");
+    resetButton.addActionListener(e -> resetSection(selectedSection));
+    final JButton save =
+        new JButtonBuilder("Save")
+            .toolTip("Saves the settings now; leaving Settings saves them too")
+            .actionListener(this::save)
+            .build();
+    LookAndFeel.setPrimaryButtonStyle(save);
+    savedNote.setForeground(LookAndFeel.getSecondaryTextColor());
+    final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+    buttons.add(resetButton);
+    buttons.add(save);
+    final JPanel footer = new JPanel(new BorderLayout(12, 0));
+    footer.setBorder(LookAndFeel.newFooterBorder());
+    footer.add(savedNote, BorderLayout.CENTER);
+    footer.add(buttons, BorderLayout.EAST);
+    return footer;
+  }
+
+  /**
+   * Saves the settings as leaving does; a value that is not valid keeps its old one and says so.
+   */
+  private void save() {
+    final SaveResult result =
+        SaveFunction.saveSettings(getSelectionComponents(), ClientSetting::flush);
+    if (result.hasFailures()) {
+      savedNote.setText("");
+      JOptionPane.showMessageDialog(
+          component, result.message, "Not all settings were saved", JOptionPane.WARNING_MESSAGE);
+    } else {
+      savedNote.setText("Saved.");
+    }
   }
 
   /**
@@ -242,6 +284,7 @@ final class SettingsPage {
   /** Shows the section, leaving a search; eg the one the window opens on. */
   void showSection(final SettingType section) {
     selectedSection = section;
+    savedNote.setText("");
     searchField.setText("");
     showContent();
   }
@@ -257,6 +300,8 @@ final class SettingsPage {
     }
     // while search results show, no section is the one shown
     final boolean sectionShown = searchText.isEmpty();
+    resetButton.setText("Reset " + selectedSection.title + " to defaults");
+    resetButton.setEnabled(sectionShown);
     sectionButtons.forEach(
         (section, button) -> {
           final boolean shown = sectionShown && section == selectedSection;
@@ -284,15 +329,6 @@ final class SettingsPage {
               group.getNote().ifPresent(this::addNote);
               addRows(setting -> setting.getGroup() == group);
             });
-    final JButton reset =
-        new JButtonBuilder("Reset " + section.title + " to defaults")
-            .actionListener(() -> resetSection(section))
-            .build();
-    LookAndFeel.setBorderlessButtonStyle(reset);
-    reset.setFont(
-        reset.getFont().deriveFont(Map.of(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON)));
-    addSpace(24);
-    addToColumn(reset);
   }
 
   private void addTitle(final String title, final String intro) {
@@ -390,6 +426,8 @@ final class SettingsPage {
         .filter(setting -> setting.getType() == section)
         .map(selectionComponentsBySetting::get)
         .forEach(SelectionComponent::resetToDefault);
+    // the defaults are not saved yet
+    savedNote.setText("");
   }
 
   Collection<SelectionComponent<JComponent>> getSelectionComponents() {

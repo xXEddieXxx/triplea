@@ -66,11 +66,11 @@ The headed module provides ~20 gameplay UI files in `games.strategy.triplea.ui` 
 
 - **Map area**: `MapPanel` (interactive game map from game-core) + `ImageScrollerSmallView` (minimap at the top of the right-hand side panel, which is at least 360 px wide)
 - **Turn guide**: `TurnGuidePanel` as a slim bar across the top of the window, over map and side panel — current player and round with the phase beside them on one line, plus a plain-language hint for new players of what to do in the phase (`PhaseHints`, chosen from the step like `TripleAPlayer` chooses the action panel: by step name, with the step properties deciding non-combat moves and bids)
-- **Button bar**: below the minimap (a line between them), the current phase's title and below it the buttons that go on in the phase (eg Buy and Done, or Cancel, Undo All and Done), always at the same place: `ActionButtonsPanel.getButtonBar()`; while the history shows, the "Back to the game" button (the Show current game action)
-- **Action area**: below the button bar, in a split pane with the tabs, always in view: `ActionButtonsPanel` (phase-specific action panels, eg the units to buy or the moves made), with the units to place and the unit scroller under it (both closed until the player opens them, which `ClientSetting.placementsCollapsed` and `unitScrollerCollapsed` keep); the unit scroller's buttons (previous, wake all, skip, next, each with a tool tip) float apart from it over the bottom right corner of the map in the move phases (`UnitScroller.buildButtons`, placed by `TripleAFrame.floatOverMap` in the window's layered pane, since the map paints over its own children); while the history shows, a note instead
-- **Tabbed pane** (`JTabbedPane`, at the bottom of the side panel, the things to look up; all tabs in view in as many rows as needed; FlatLaf's `rotateTabRuns: false` keeps each row in its place when a tab is chosen) with keyboard shortcuts:
-  - "History" — `HistoryDetailsPanel`, first and chosen while the history shows
-  - "Territory" (Ctrl+T) — `TerritoryDetailPanel`, chosen by default; the tab the player clicks or picks by its shortcut is kept in `ClientSetting.gameSideTab` and chosen again in the next games
+- **Units to place and unit scroller**: at the bottom of the side panel, below the tabs (both closed until the player opens them, which `ClientSetting.placementsCollapsed` and `unitScrollerCollapsed` keep); the unit scroller's buttons (previous, wake all, skip, next, each with a tool tip) float apart from it over the bottom right corner of the map in the move phases (`UnitScroller.buildButtons`, placed by `TripleAFrame.floatOverMap` in the window's layered pane, since the map paints over its own children)
+- **Tabbed pane** (`JTabbedPane`, below the minimap; all tabs in view in as many rows as needed; FlatLaf's `rotateTabRuns: false` keeps each row in its place when a tab is chosen) with keyboard shortcuts:
+  - "Actions" (Ctrl+C) — `ActionButtonsPanel` (phase-specific action panels, eg the units to buy or the moves made, each with its title and below it its buttons side by side, `ActionPanel.newButtonRow`), first and chosen when the game shows; while the history shows, a note with the "Back to the game" button (the Show current game action) instead
+  - "History" — `HistoryDetailsPanel`, after Actions and chosen while the history shows
+  - "Territory" (Ctrl+T) — `TerritoryDetailPanel`
   - "Players" (Ctrl+P) — `StatPanel` (player statistics)
   - "Technology" (Ctrl+Y) — `TechnologyPanel` (conditional: only if tech is in the game)
   - "Resources" (Ctrl+R) — `EconomyPanel`
@@ -109,7 +109,7 @@ ActionPanel (abstract base)
 
 ### ActionButtonsPanel
 
-Manages the set of `ActionPanel` instances using `CardLayout`, showing the appropriate panel for the current game phase. A panel hands its buttons to `ActionPanel.showButtons` instead of laying them out itself; `ActionButtonsPanel` shows those of the current panel in its button bar (they go with the panel's `removeAll`). Holds references to: `BattlePanel`, `MovePanel`, `PurchasePanel`, `RepairPanel`, `PlacePanel`, `TechPanel`, `EndTurnPanel`, `MoveForumPosterPanel`, `PoliticsPanel`, `UserActionPanel`, `PickTerritoryAndUnitsPanel`.
+Manages the set of `ActionPanel` instances using `CardLayout`, showing the appropriate panel for the current game phase; each panel lays out its own buttons, eg as a row from `ActionPanel.newButtonRow`. Holds references to: `BattlePanel`, `MovePanel`, `PurchasePanel`, `RepairPanel`, `PlacePanel`, `TechPanel`, `EndTurnPanel`, `MoveForumPosterPanel`, `PoliticsPanel`, `UserActionPanel`, `PickTerritoryAndUnitsPanel`.
 
 ### Other Gameplay UI
 

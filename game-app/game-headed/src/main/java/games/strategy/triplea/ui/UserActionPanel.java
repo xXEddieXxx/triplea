@@ -126,7 +126,7 @@ public class UserActionPanel extends ActionPanel {
           doneButton = createDoneButton();
           doneButton.setEnabled(false);
 
-          showButtons(selectUserActionButton, doneButton);
+          add(newButtonRow(selectUserActionButton, doneButton));
 
           SwingUtilities.invokeLater(() -> doneButton.requestFocusInWindow());
         });

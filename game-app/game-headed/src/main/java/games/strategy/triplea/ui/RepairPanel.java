@@ -77,7 +77,7 @@ class RepairPanel extends ActionPanel {
           add(SwingComponents.leftBox(actionLabel));
 
           buyButton.setText(BUY);
-          showButtons(buyButton, createDoneButton());
+          add(newButtonRow(buyButton, createDoneButton()));
 
           repairedSoFar.setText("");
           add(Box.createVerticalStrut(9));

@@ -2,12 +2,20 @@ package games.strategy.triplea.ui.menubar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.formdev.flatlaf.FlatDarkLaf;
 import games.strategy.triplea.settings.ClientSetting;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 import javax.swing.JComponent;
+import javax.swing.JPanel;
 import javax.swing.JRootPane;
 import javax.swing.KeyStroke;
+import javax.swing.LookAndFeel;
+import javax.swing.UIManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +52,30 @@ final class GameToolBarTest {
     assertThat(ClientSetting.lockMap.getValueOrThrow())
         .as("the switch is in the settings now, the shortcut stays")
         .isEqualTo(!lockedAtFirst);
+  }
+
+  @DisplayName("The icons sit on the top bar's color, not on the menu bar color of FlatLaf")
+  @Test
+  void iconBarShowsTheTopBarsColor() throws Exception {
+    final LookAndFeel before = UIManager.getLookAndFeel();
+    UIManager.setLookAndFeel(new FlatDarkLaf());
+    try {
+      final JPanel topBar = new JPanel(new BorderLayout());
+      topBar.setBackground(Color.RED);
+      topBar.add(GameToolBar.newIconBar(), BorderLayout.NORTH);
+      topBar.setSize(100, 40);
+      topBar.doLayout();
+      final BufferedImage painted = new BufferedImage(100, 40, BufferedImage.TYPE_INT_RGB);
+      final Graphics2D graphics = painted.createGraphics();
+      topBar.paint(graphics);
+      graphics.dispose();
+
+      assertThat(new Color(painted.getRGB(50, 2)))
+          .as("the bar's color shows through the icon bar")
+          .isEqualTo(Color.RED);
+    } finally {
+      UIManager.setLookAndFeel(before);
+    }
   }
 
   /** Runs what the window would on the keys. */

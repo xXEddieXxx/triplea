@@ -121,7 +121,7 @@ public class PurchasePanel extends ActionPanel {
           add(SwingComponents.leftBox(actionLabel));
 
           buyButton.setText(BUY);
-          showButtons(buyButton, createDoneButton());
+          add(newButtonRow(buyButton, createDoneButton()));
 
           add(Box.createVerticalStrut(9));
 

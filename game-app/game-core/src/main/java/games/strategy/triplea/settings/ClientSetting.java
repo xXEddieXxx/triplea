@@ -280,10 +280,6 @@ public abstract class ClientSetting<T> implements GameSetting<T> {
   public static final ClientSetting<Boolean> placementsCollapsed =
       new BooleanClientSetting("PLACEMENTS_COLLAPSED", true);
 
-  /** The title of the game window's side tab the player chose last, eg "Players". */
-  public static final ClientSetting<String> gameSideTab =
-      new StringClientSetting("GAME_SIDE_TAB", "Territory");
-
   public static final ClientSetting<String> emailProvider =
       new StringClientSetting("EMAIL_PROVIDER");
 

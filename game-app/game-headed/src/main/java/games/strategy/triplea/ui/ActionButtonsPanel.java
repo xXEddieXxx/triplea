@@ -20,7 +20,6 @@ import games.strategy.triplea.delegate.remote.IPoliticsDelegate;
 import games.strategy.triplea.delegate.remote.IUserActionDelegate;
 import games.strategy.triplea.ui.panel.move.MovePanel;
 import games.strategy.triplea.ui.panels.map.MapPanel;
-import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.util.Collection;
 import java.util.List;
@@ -29,7 +28,6 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -67,12 +65,6 @@ public class ActionButtonsPanel extends JPanel {
 
   private @Nullable ActionPanel actionPanel;
 
-  /**
-   * The buttons of the current phase (eg Buy and Done), always at the same place in the game
-   * window, whatever the phase shows below them.
-   */
-  @Getter private final JPanel buttonBar = new JPanel(new BorderLayout());
-
   public ActionButtonsPanel(final @Nonnull MovePanel movePanel, final TripleAFrame frame) {
     registerKeyBindings(frame);
     final MapPanel mapPanel = frame.getMapPanel();
@@ -102,27 +94,6 @@ public class ActionButtonsPanel extends JPanel {
     add(politicsPanel, politicsPanel.toString());
     add(userActionPanel, userActionPanel.toString());
     add(pickTerritoryAndUnitsPanel, pickTerritoryAndUnitsPanel.toString());
-    for (final ActionPanel panel :
-        List.of(
-            battlePanel,
-            this.movePanel,
-            repairPanel,
-            purchasePanel,
-            placePanel,
-            techPanel,
-            endTurnPanel,
-            moveForumPosterPanel,
-            politicsPanel,
-            userActionPanel,
-            pickTerritoryAndUnitsPanel)) {
-      panel.addPropertyChangeListener(
-          ActionPanel.BUTTONS_PROPERTY,
-          event -> {
-            if (event.getSource() == actionPanel) {
-              showButtonsOfCurrentPhase();
-            }
-          });
-    }
     // this should not be necessary, but it makes tracking down garbage leaks easier in the profiler
     // since it removes a lot of links between objects and if there is a memory leak, this will
     // minimize the damage
@@ -218,32 +189,8 @@ public class ActionButtonsPanel extends JPanel {
     // newCurrent might be null if we are shutting down
     if (newCurrent != null) {
       newCurrent.display(gamePlayer);
-      SwingUtilities.invokeLater(
-          () -> {
-            layout.show(ActionButtonsPanel.this, newCurrent.toString());
-            showButtonsOfCurrentPhase();
-          });
+      SwingUtilities.invokeLater(() -> layout.show(ActionButtonsPanel.this, newCurrent.toString()));
     }
-  }
-
-  /** Shows the buttons of the current phase in the button bar; call it on the EDT. */
-  public void showButtonsOfCurrentPhase() {
-    buttonBar.removeAll();
-    Optional.ofNullable(actionPanel)
-        .flatMap(ActionPanel::getButtons)
-        .ifPresent(buttons -> buttonBar.add(buttons, BorderLayout.CENTER));
-    buttonBar.setVisible(buttonBar.getComponentCount() > 0);
-    buttonBar.revalidate();
-    buttonBar.repaint();
-  }
-
-  /** Shows the button in the button bar in place of the phase's, eg the way back to the game. */
-  public void showInButtonBar(final JComponent button) {
-    buttonBar.removeAll();
-    buttonBar.add(button, BorderLayout.CENTER);
-    buttonBar.setVisible(true);
-    buttonBar.revalidate();
-    buttonBar.repaint();
   }
 
   public void changeToPickTerritoryAndUnits(final GamePlayer gamePlayer) {

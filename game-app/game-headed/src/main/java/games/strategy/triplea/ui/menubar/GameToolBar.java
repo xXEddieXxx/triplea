@@ -9,6 +9,7 @@ import games.strategy.triplea.settings.SettingType;
 import games.strategy.triplea.ui.FindTerritoryAction;
 import games.strategy.triplea.ui.TripleAFrame;
 import games.strategy.triplea.ui.menubar.ToolIcon.Kind;
+import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
@@ -121,11 +122,14 @@ public final class GameToolBar extends JPanel {
   }
 
   /** A menu bar for icons, so menu accelerators and Alt with a menu's letter work. */
-  private static JMenuBar newIconBar() {
+  @VisibleForTesting
+  static JMenuBar newIconBar() {
     final JMenuBar icons = new JMenuBar();
     icons.setBorder(BorderFactory.createEmptyBorder());
-    // the bar's own color shows through
+    // the top bar's color shows through: FlatLaf paints a menu bar in the menus' color even when it
+    // is not opaque, unless its background is one of its own, here a clear one
     icons.setOpaque(false);
+    icons.setBackground(new Color(0, 0, 0, 0));
     return icons;
   }
 

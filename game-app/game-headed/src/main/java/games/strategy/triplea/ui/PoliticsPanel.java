@@ -184,7 +184,7 @@ public class PoliticsPanel extends ActionPanel {
           doneButton = createDoneButton();
           doneButton.setEnabled(false);
 
-          showButtons(selectPoliticalActionButton, doneButton);
+          add(newButtonRow(selectPoliticalActionButton, doneButton));
 
           SwingUtilities.invokeLater(() -> doneButton.requestFocusInWindow());
         });

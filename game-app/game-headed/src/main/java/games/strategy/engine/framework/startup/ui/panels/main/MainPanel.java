@@ -23,6 +23,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import org.triplea.game.chat.ChatModel;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.SwingAction;
@@ -37,6 +38,8 @@ import org.triplea.swing.jpanel.JPanelBuilder;
 public class MainPanel extends JPanel {
   private static final long serialVersionUID = -5548760379892913464L;
   private static final Dimension initialSize = new Dimension(1000, 760);
+  private static final String PLAYERS = "Players";
+  private static final String OPTIONS = "Game options";
 
   private final JButton playButton =
       new JButtonBuilder()
@@ -60,6 +63,9 @@ public class MainPanel extends JPanel {
   // the scroll pane for setup screens, or the main menu and the lobby, which fit without one
   private final JPanel setupArea = new JPanelBuilder().borderLayout().build();
   private final JPanel mainPanel;
+  // a setup screen's players and the game's options, each on a tab of the room on the right
+  private final JTabbedPane tabs = new JTabbedPane();
+  private final JPanel playersTab = new JPanelBuilder().borderLayout().build();
   private final JSplitPane chatSplit;
   private final JPanel chatPanelHolder = new JPanelBuilder().height(62).borderLayout().build();
   // the buttons of the current screen, right of the quit button: [Network...] [Start Game]
@@ -83,12 +89,18 @@ public class MainPanel extends JPanel {
     playButton.addActionListener(e -> launchAction.accept(this));
     LookAndFeel.setPrimaryButtonStyle(playButton);
 
-    // the selected game in a column on the right: map picture, name, Change map, Load game, the
-    // game's options
+    // the selected game in a column on the left: map picture, name, Change map, Load game
     gameSelectorPanel.setBorder(
         BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 1, 0, 0, LookAndFeel.getSeparatorColor()),
+            BorderFactory.createMatteBorder(0, 0, 0, 1, LookAndFeel.getSeparatorColor()),
             BorderFactory.createEmptyBorder(16, 16, 12, 16)));
+    // the players and the game's options share the room on the right, each on its tab
+    tabs.addTab(PLAYERS, playersTab);
+    tabs.addTab(
+        optionsTitle(gameSelectorPanel.getOptionCount()), gameSelectorPanel.getOptionsPanel());
+    gameSelectorPanel.addPropertyChangeListener(
+        GameSelectorPanel.OPTION_COUNT,
+        e -> tabs.setTitleAt(1, optionsTitle((int) e.getNewValue())));
     gameSetupPanelScroll.setBorder(BorderFactory.createEmptyBorder());
     SwingComponents.setScrollSpeed(gameSetupPanelScroll);
     chatSplit = new JSplitPane();
@@ -100,7 +112,7 @@ public class MainPanel extends JPanel {
     // in the middle the players
     mainPanel = new JPanelBuilder().border(0).borderLayout().build();
     mainPanel.add(setupArea, BorderLayout.CENTER);
-    mainPanel.add(gameSelectorPanel, BorderLayout.EAST);
+    mainPanel.add(gameSelectorPanel, BorderLayout.WEST);
     setLayout(new BorderLayout());
 
     if (chatModel instanceof ChatPanel) {
@@ -126,6 +138,11 @@ public class MainPanel extends JPanel {
     add(barHolder, BorderLayout.NORTH);
     setPreferredSize(initialSize);
     updatePlayButtonState();
+  }
+
+  /** "Game options · 14", so the player sees there are some before opening the tab. */
+  private static String optionsTitle(final int count) {
+    return count == 0 ? OPTIONS : OPTIONS + " · " + count;
   }
 
   private void addChat(final Component chatComponent) {
@@ -157,9 +174,16 @@ public class MainPanel extends JPanel {
     // scroll bars by hiding what does not fit; the lobby scrolls in a very low window.
     if (panel.isMainMenu()) {
       setupArea.add(panel, BorderLayout.CENTER);
-    } else {
+    } else if (panel.isFullWindow()) {
+      // the lobby has no game, so no options either
       gameSetupPanelHolder.add(panel, BorderLayout.CENTER);
       setupArea.add(gameSetupPanelScroll, BorderLayout.CENTER);
+    } else {
+      gameSetupPanelHolder.add(panel, BorderLayout.CENTER);
+      playersTab.add(gameSetupPanelScroll, BorderLayout.CENTER);
+      // each screen starts with its players
+      tabs.setSelectedIndex(0);
+      setupArea.add(tabs, BorderLayout.CENTER);
     }
     gameSelectorPanel.setVisible(!panel.isFullWindow());
     gameSelectorPanel.getResourceModifiersSwitch().setVisible(panel.hasResourceModifiers());

@@ -5,18 +5,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.properties.IEditableProperty;
 import games.strategy.engine.framework.I18nEngineFramework;
+import games.strategy.engine.framework.startup.ui.IGamePropertiesCache;
 import games.strategy.triplea.settings.ClientSetting;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.GridBagLayout;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
-import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JTextArea;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
@@ -79,27 +83,112 @@ final class GameSelectorPanelTest {
         .isEqualTo(loadedValue);
   }
 
-  @DisplayName(
-      "Options set behind the editors, eg defaults loaded after the map, show once laid out")
+  @DisplayName("Without changed options the column says so at once")
   @Test
-  void optionsShowValuesSetAfterTheGameLoaded() throws Exception {
+  void noChangesSayNone() throws Exception {
+    model.setGameData(TestMapGameData.REVISED.getGameData());
+    waitForEdt();
+
+    assertThat(visibleTexts(panel))
+        .as("an empty heading looks broken; the hint tells the rules are the map's own")
+        .contains("None: the map's own rules.");
+  }
+
+  @DisplayName("The column lists the options changed from the game as it was loaded")
+  @Test
+  void changedOptionsAreListed() throws Exception {
     final GameData game = TestMapGameData.REVISED.getGameData();
     model.setGameData(game);
     waitForEdt();
+    final List<String> asLoaded = panel.describeChanges();
     final IEditableProperty<?> option = givenOnOffOption(game);
-    final boolean setLater = !(Boolean) option.getValue();
-    // as "Make default" values are, after the map loaded; none are saved for the test map
-    option.validateAndSet(setLater);
+    final boolean changed = !(Boolean) option.getValue();
 
-    panel.loadDefaultOptions();
-    waitForEdt();
+    option.validateAndSet(changed);
 
-    assertThat(checkBoxOf(panel.getOptionsPanel(), option.getName()).isSelected())
-        .as("the screen shows what the game starts with")
-        .isEqualTo(setLater);
+    assertThat(asLoaded).as("the map's own rules: nothing to list").isEmpty();
+    assertThat(panel.describeChanges())
+        .as("the player sees at a glance what differs from the map's rules")
+        .containsExactly(option.getName() + ": " + (changed ? "on" : "off"));
   }
 
-  @DisplayName("Resource Modifiers in the options switches the income fields of the nations on")
+  @DisplayName("A rule set is kept only with changed options and a name of its own")
+  @Test
+  void ruleSetNeedsChangesAndANewName() throws Exception {
+    final List<String> kept = new ArrayList<>();
+    final GameSelectorPanel withRuleSets =
+        new GameSelectorPanel(model, (parent, load) -> {}, new RuleSetsInMemory(kept));
+    // as the screen's panel does, so it knows the options the game was loaded with
+    model.addObserver(withRuleSets);
+    final GameData game = TestMapGameData.REVISED.getGameData();
+    model.setGameData(game);
+    waitForEdt();
+    final boolean asLoaded = withRuleSets.whyNotSaved("Low luck night").isEmpty();
+    final IEditableProperty<?> option = givenOnOffOption(game);
+    option.validateAndSet(!(Boolean) option.getValue());
+    final boolean changed = withRuleSets.whyNotSaved("Low luck night").isEmpty();
+
+    withRuleSets.saveRuleSet("Low luck night");
+
+    assertThat(List.of(asLoaded, changed))
+        .as("the map's own rules need no set; changed ones may be kept")
+        .containsExactly(false, true);
+    assertThat(withRuleSets.whyNotSaved("LOW LUCK NIGHT"))
+        .as("no second set of the same name, also not in other letters' case")
+        .isPresent();
+    assertThat(withRuleSets.whyNotSaved("Low/luck"))
+        .as("a character a file name cannot have would be dropped and could meet another name")
+        .isPresent();
+    assertThat(kept).as("one more entry in the list").containsExactly("Low luck night");
+  }
+
+  @DisplayName("The popup lists each saved rule set to load, with a trash can to delete it")
+  @Test
+  void savedRuleSetsAreListed() throws Exception {
+    final List<String> kept = new ArrayList<>(List.of("Classic"));
+    final GameSelectorPanel withRuleSets =
+        new GameSelectorPanel(model, (parent, load) -> {}, new RuleSetsInMemory(kept));
+    model.setGameData(TestMapGameData.REVISED.getGameData());
+    waitForEdt();
+    // as the popup holds it
+    final JPanel saved = new JPanel(new GridBagLayout());
+
+    withRuleSets.listRuleSets(saved, new JPopupMenu());
+
+    assertThat(
+            componentsIn(saved)
+                .filter(AbstractButton.class::isInstance)
+                .map(AbstractButton.class::cast)
+                .map(button -> button.getText() + "|" + button.getToolTipText())
+                .toList())
+        .as("the name loads the set; the icon-only button deletes it, its hint says so")
+        .containsExactly("Classic|Load", "|Delete");
+  }
+
+  /** Rule sets kept in a list, so tests stay off the player's folder. */
+  private record RuleSetsInMemory(List<String> names) implements IGamePropertiesCache {
+    @Override
+    public void saveRuleSet(final GameData gameData, final String name) {
+      names.add(name);
+    }
+
+    @Override
+    public List<String> getRuleSetNames(final GameData gameData) {
+      return List.copyOf(names);
+    }
+
+    @Override
+    public void loadRuleSetInto(final GameData gameData, final String name) {
+      // the test does not load
+    }
+
+    @Override
+    public void deleteRuleSet(final GameData gameData, final String name) {
+      names.remove(name);
+    }
+  }
+
+  @DisplayName("Resource Modifiers in the column switches the income fields of the nations on")
   @Test
   void resourceModifiersSwitchShowsTheIncomeFields() throws Exception {
     model.setGameData(TestMapGameData.REVISED.getGameData());
@@ -118,7 +207,8 @@ final class GameSelectorPanelTest {
   private JToggleButton givenResourceModifiersSwitch() {
     final String title =
         I18nEngineFramework.get().getText("startup.SetupPanel.resourceModifiers.Lbl");
-    return componentsIn(panel.getOptionsPanel())
+    // in the column below the card, beside whichever tab shows
+    return componentsIn(panel)
         .filter(JToggleButton.class::isInstance)
         .map(JToggleButton.class::cast)
         .filter(toggle -> title.equals(toggle.getText()))
@@ -168,15 +258,6 @@ final class GameSelectorPanelTest {
         .doesNotContain("Change game options...");
   }
 
-  private static JCheckBox checkBoxOf(final Container container, final String text) {
-    return componentsIn(container)
-        .filter(JCheckBox.class::isInstance)
-        .map(JCheckBox.class::cast)
-        .filter(box -> text.equals(box.getText()))
-        .findFirst()
-        .orElseThrow();
-  }
-
   private static List<String> textsIn(final Container container) {
     return componentsIn(container)
         .flatMap(
@@ -220,6 +301,10 @@ final class GameSelectorPanelTest {
   private static Stream<String> textsOf(final Component component) {
     if (component instanceof JLabel label) {
       return Stream.ofNullable(label.getText());
+    }
+    // eg the wrapping hints and lines of the column
+    if (component instanceof JTextArea text) {
+      return Stream.of(text.getText());
     }
     return component instanceof Container container
         ? visibleTexts(container).stream()

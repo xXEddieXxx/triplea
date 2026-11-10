@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import games.strategy.triplea.xml.TestMapGameData;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +14,7 @@ import javax.swing.AbstractButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -85,17 +87,44 @@ final class PropertiesUiTest {
             && Arrays.stream(container.getComponents()).anyMatch(PropertiesUiTest::hasTextField));
   }
 
-  @DisplayName("The narrow column groups a game's options under headings like Dice & battles")
+  @DisplayName("The grouped options stand under headings like Dice & battles")
   @Test
-  void narrowColumnGroupsTheOptions() {
+  void groupedOptionsHaveHeadings() {
     final PropertiesUi column =
-        PropertiesUi.newNarrow(TestMapGameData.REVISED.getGameData().getProperties(), true);
+        PropertiesUi.newGrouped(TestMapGameData.REVISED.getGameData().getProperties(), true);
 
     assertThat(labelTexts(column))
         .as("section headings are in capitals; Revised has Low Luck and victory options")
         .contains("DICE & BATTLES", "VICTORY")
         .doesNotContain("ON / OFF");
     assertThat(checkBoxTexts(column)).as("the options themselves stay").contains("Low Luck");
+  }
+
+  @DisplayName("The grouped options stand in as many columns of one width as the room holds")
+  @Test
+  void groupsFillColumnsOfOneWidth() throws Exception {
+    final PropertiesUi grouped =
+        PropertiesUi.newGrouped(TestMapGameData.REVISED.getGameData().getProperties(), true);
+
+    final Dimension narrow = sizeInRoom(grouped, 300);
+    final Dimension wide = sizeInRoom(grouped, 1000);
+
+    assertThat(wide.height)
+        .as("groups side by side need far less height than one below the other")
+        .isLessThan(narrow.height * 2 / 3);
+    assertThat(wide.width)
+        .as("three columns of 300 px or a long name's width, not stretched to the room's 1000 px")
+        .isBetween(3 * 300 + 2 * 16, 999);
+  }
+
+  /** The size of the columns the grouped options show in a room of the given width. */
+  private static Dimension sizeInRoom(final PropertiesUi grouped, final int width)
+      throws Exception {
+    final Container room = (Container) grouped.getComponent(0);
+    room.setSize(width, 2000);
+    // the columns follow the resize event on the Swing thread
+    SwingUtilities.invokeAndWait(() -> {});
+    return room.getComponent(0).getPreferredSize();
   }
 
   @DisplayName("Read-only on/off options keep a label, so their names are not greyed out")

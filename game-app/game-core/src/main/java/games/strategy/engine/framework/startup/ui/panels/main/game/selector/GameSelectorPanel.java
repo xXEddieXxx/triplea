@@ -1,5 +1,6 @@
 package games.strategy.engine.framework.startup.ui.panels.main.game.selector;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import com.google.common.annotations.VisibleForTesting;
 import games.strategy.engine.data.GameData;
 import games.strategy.engine.data.properties.IEditableProperty;
@@ -13,6 +14,7 @@ import games.strategy.engine.framework.startup.ui.IGamePropertiesCache;
 import games.strategy.engine.framework.ui.GameChooser;
 import games.strategy.engine.framework.ui.background.BackgroundTaskRunner;
 import games.strategy.triplea.settings.ClientSetting;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -31,41 +33,52 @@ import java.io.Serial;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 import lombok.extern.slf4j.Slf4j;
 import org.triplea.java.ThreadRunner;
+import org.triplea.swing.DocumentListenerBuilder;
 import org.triplea.swing.JButtonBuilder;
 import org.triplea.swing.JLabelBuilder;
 import org.triplea.swing.ScrollableJPanel;
 import org.triplea.swing.SwingAction;
 import org.triplea.swing.SwingComponents;
+import org.triplea.swing.WrappingText;
 import org.triplea.swing.jpanel.GridBagConstraintsBuilder;
 import org.triplea.swing.jpanel.GridBagConstraintsFill;
 
 /**
- * The selected game of a setup screen, in the column on its right: the map's picture, the game's
- * name, round and save, Change map, Load game and Get more maps, and below them the game's options
- * behind a button, so they are set on the screen itself instead of in a dialog without crowding it.
- * The options' Resource Modifiers button shows each nation's income fields in its row of players.
+ * The selected game of a setup screen, in a column of fixed width on its left: the map's picture,
+ * the game's name, round and save, Change map, Load game and Get more maps; below them the Resource
+ * Modifiers button, which shows each nation's income fields in its row of players, the rules
+ * changed from the game as loaded. The game's options, with the player's rule sets of the game, are
+ * a panel of their own ({@link #getOptionsPanel}) that the screen shows on a tab beside the
+ * players, so they get the whole width.
  */
 @Slf4j
 public final class GameSelectorPanel extends JPanel implements Observer {
@@ -74,12 +87,17 @@ public final class GameSelectorPanel extends JPanel implements Observer {
   /** The width of the map's picture; as wide as 16:9 makes it, as the map browser shows maps. */
   private static final int PICTURE_WIDTH = 288;
 
-  private static final String SHOW_OPTIONS = "Show game options";
-  private static final String HIDE_OPTIONS = "Hide game options";
+  /** The bound property with the number of options the game has, eg for the title of their tab. */
+  public static final String OPTION_COUNT = "optionCount";
+
+  // the most height the list of saved rule sets takes before it scrolls
+  private static final int RULE_SETS_HEIGHT = 240;
+
+  // characters a file name cannot have, also control characters
+  private static final Pattern FORBIDDEN_IN_NAMES = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]");
 
   private final GameSelectorModel model;
   private final transient BiConsumer<Component, Consumer<Path>> savedGameChooser;
-  private final IGamePropertiesCache gamePropertiesCache = new FileBackedGamePropertiesCache();
   // the options of the game as it was loaded, before any change; replaced, never changed, as
   // games load on other threads while the Swing thread reads them
   private volatile Map<String, Object> originalPropertiesMap = new HashMap<>();
@@ -105,16 +123,28 @@ public final class GameSelectorPanel extends JPanel implements Observer {
           .toolTip("Open a game saved on your computer and play on")
           .build();
 
-  private final JButton optionsToggle =
-      new JButtonBuilder()
-          .title(SHOW_OPTIONS)
-          .toolTip("The game's rules, eg Low Luck, and each nation's income")
-          .build();
-  private final JPanel options = new JPanel(new BorderLayout(0, 8));
-  // takes the room below the card while the options are hidden, so the card stays at the top
-  private final JPanel optionsGap = new JPanel();
+  private final JPanel options = new JPanel(new BorderLayout(0, 12));
   // one button for all layouts of the options, so the screen can hide it where it has no use
   private final JToggleButton resourceModifiers = newResourceModifiersSwitch();
+  // below the card: the rules changed from the map's own
+  private final JPanel rulesSummary = new JPanel(new GridBagLayout());
+  private final JPanel changedRules = new JPanel(new GridBagLayout());
+  // keeps the player's rule sets of the game
+  private final IGamePropertiesCache gamePropertiesCache;
+  // what the list of changed rules shows, so it is laid out again only when that changes; none
+  // before the first time, so even "no changes" is shown then
+  private @Nullable List<String> shownChanges;
+  // shortcut: the options tell no one of a change, so the list looks twice a second while the
+  // panel shows; give IEditableProperty change listeners if more than this list must follow them
+  private final Timer changesWatch =
+      new Timer(
+          500,
+          e -> {
+            // hidden on the main menu and in the lobby
+            if (isShowing()) {
+              showChangedRules();
+            }
+          });
   // what the options show, so a new layout comes only with another game, not on each update
   private @Nullable GameData optionsGame;
   private boolean optionsEditable;
@@ -133,15 +163,25 @@ public final class GameSelectorPanel extends JPanel implements Observer {
    */
   public GameSelectorPanel(
       final GameSelectorModel model, final BiConsumer<Component, Consumer<Path>> savedGameChooser) {
+    this(model, savedGameChooser, new FileBackedGamePropertiesCache());
+  }
+
+  /** With the rule sets kept where the given cache keeps them, eg in memory for a test. */
+  @VisibleForTesting
+  GameSelectorPanel(
+      final GameSelectorModel model,
+      final BiConsumer<Component, Consumer<Path>> savedGameChooser,
+      final IGamePropertiesCache gamePropertiesCache) {
     this.model = model;
     this.savedGameChooser = savedGameChooser;
+    this.gamePropertiesCache = gamePropertiesCache;
     final GameData data = model.getGameData();
     if (data != null) {
       setOriginalPropertiesMap(data);
-      gamePropertiesCache.loadCachedGamePropertiesInto(data);
     }
 
-    // one column, top to bottom: the map's card, the link to more maps, the options
+    // one column, top to bottom: the map's card, the link to more maps, the income switch, the
+    // rules changed from the map's own
     setLayout(new GridBagLayout());
     add(LookAndFeel.newSectionLabel("Map"), buildGridRow(0, new Insets(0, 0, 6, 0)));
     add(newGameCard(), buildGridRow(1, new Insets(0, 0, 0, 0)));
@@ -154,14 +194,15 @@ public final class GameSelectorPanel extends JPanel implements Observer {
     LookAndFeel.setBorderlessButtonStyle(moreMaps);
     moreMaps.setHorizontalAlignment(SwingConstants.LEADING);
     add(moreMaps, buildGridRow(2, new Insets(10, 0, 0, 0)));
-    add(optionsToggle, buildGridRow(3, new Insets(16, 0, 0, 0)));
-    // the options take the rest of the height and scroll within it
-    add(options, buildFillingRow(4, new Insets(12, 0, 0, 0)));
-    add(optionsGap, buildFillingRow(5, new Insets(0, 0, 0, 0)));
-    options.setOpaque(false);
-    // a long list of options would push the card away; they show when asked for
-    options.setVisible(false);
-    optionsToggle.addActionListener(e -> setOptionsShown(!options.isVisible()));
+    // in the column, as it changes the players' table, whichever tab shows
+    add(resourceModifiers, buildGridRow(3, new Insets(12, 0, 0, 0)));
+    rulesSummary.add(
+        LookAndFeel.newSectionLabel("Changed rules"), buildGridRow(0, new Insets(0, 0, 6, 0)));
+    rulesSummary.add(changedRules, buildGridRow(1, new Insets(0, 0, 0, 0)));
+    add(rulesSummary, buildGridRow(4, new Insets(22, 0, 0, 0)));
+    // takes the room below, so the card stays at the top
+    add(new JPanel(), buildFillingRow(5, new Insets(0, 0, 0, 0)));
+    options.setBorder(BorderFactory.createEmptyBorder(16, 16, 12, 16));
 
     changeMap.addActionListener(
         e -> {
@@ -189,6 +230,18 @@ public final class GameSelectorPanel extends JPanel implements Observer {
     updateGameData();
   }
 
+  @Override
+  public void addNotify() {
+    super.addNotify();
+    changesWatch.start();
+  }
+
+  @Override
+  public void removeNotify() {
+    changesWatch.stop();
+    super.removeNotify();
+  }
+
   /** A full-width row; buttons stretch to the width of the panel. */
   private static GridBagConstraints buildGridRow(final int y, final Insets insets) {
     return new GridBagConstraintsBuilder(0, y)
@@ -208,14 +261,6 @@ public final class GameSelectorPanel extends JPanel implements Observer {
         .build();
   }
 
-  private void setOptionsShown(final boolean shown) {
-    options.setVisible(shown);
-    optionsGap.setVisible(!shown);
-    optionsToggle.setText(shown ? HIDE_OPTIONS : SHOW_OPTIONS);
-    revalidate();
-    repaint();
-  }
-
   /** The selected game with what belongs to it: its map's picture, changing it, loading a save. */
   private JPanel newGameCard() {
     final JPanel card = new JPanel(new GridBagLayout());
@@ -232,11 +277,18 @@ public final class GameSelectorPanel extends JPanel implements Observer {
 
   /**
    * The options of the selected game, eg Low Luck or technology, to set right on the setup screen;
-   * with Reset and Make default where the player may change them, to look at on a joined game.
+   * with Reset and Rule sets where the player may change them, to look at on a joined game. The
+   * screen shows them on a tab of their own; {@link #OPTION_COUNT} tells how many there are.
    */
-  @VisibleForTesting
-  JComponent getOptionsPanel() {
+  public JComponent getOptionsPanel() {
     return options;
+  }
+
+  /** How many options the selected game has; none without its data, eg a game joined. */
+  public int getOptionCount() {
+    return Optional.ofNullable(model.getGameData())
+        .map(data -> data.getProperties().getEditableProperties().size())
+        .orElse(0);
   }
 
   private void setOriginalPropertiesMap(@Nullable final GameData data) {
@@ -300,12 +352,14 @@ public final class GameSelectorPanel extends JPanel implements Observer {
     optionsEditable = editable;
     optionsOfBot = ofBot;
     options.removeAll();
-    // the button above names the options; this row has what can be done with them
+    // the tab names the options; this row has what can be done with them
     final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 12, 0));
-    // the first link lines up with the button; the layout puts its gap before it too
+    // the first one lines up with the options; the layout puts its gap before it too
     actions.setBorder(BorderFactory.createEmptyBorder(0, -12, 0, 0));
     actions.setOpaque(false);
     options.add(actions, BorderLayout.NORTH);
+    // tells the tab how many options there are; -1 as the old value, so it is always told
+    firePropertyChange(OPTION_COUNT, -1, getOptionCount());
     if (ofBot) {
       // the bot keeps the options: they are changed by asking it
       final JButton change =
@@ -330,30 +384,229 @@ public final class GameSelectorPanel extends JPanel implements Observer {
       if (editable && !data.getProperties().getEditableProperties().isEmpty()) {
         actions.add(
             newOptionsLink("Reset", "Back to the options the game was loaded with", this::reset));
-        actions.add(
-            newOptionsLink(
-                "Make default",
-                "Start every new game of this map with these options",
-                () -> gamePropertiesCache.cacheGameProperties(model.getGameData())));
+        final JButton ruleSetsButton =
+            new JButtonBuilder()
+                .title("Rule sets")
+                .toolTip("Keep these options under a name, or load options kept before")
+                .build();
+        ruleSetsButton.addActionListener(e -> showRuleSets(ruleSetsButton));
+        actions.add(ruleSetsButton);
       }
-      final PropertiesUi rules = PropertiesUi.newNarrow(data.getProperties(), editable);
-      // as wide as the column: the options wrap into it instead of scrolling sideways
+      final PropertiesUi rules = PropertiesUi.newGrouped(data.getProperties(), editable);
+      // as wide as the tab: the cards fill columns instead of scrolling sideways
       final ScrollableJPanel content = new ScrollableJPanel();
       content.setLayout(new BorderLayout());
       content.add(rules, BorderLayout.NORTH);
       final JScrollPane scroll = SwingComponents.newJScrollPane(content);
+      scroll.setBorder(BorderFactory.createEmptyBorder());
       scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-      // the column's width and the height left below the card decide the size, not the options
+      // the tab's size decides, not the options
       scroll.setPreferredSize(new Dimension(0, 0));
-      final JPanel body = new JPanel(new BorderLayout(0, 10));
-      body.setOpaque(false);
-      // as wide as the column, like Change map: a button of its own, not one more link
-      body.add(resourceModifiers, BorderLayout.NORTH);
-      body.add(PropertiesUi.withFilter(rules, scroll), BorderLayout.CENTER);
-      options.add(body, BorderLayout.CENTER);
+      options.add(PropertiesUi.withFilter(rules, scroll), BorderLayout.CENTER);
     }
+    // a joined game has its options at the host, a bot's game asks the bot
+    rulesSummary.setVisible(data != null && editable);
+    showChangedRules();
     options.revalidate();
     options.repaint();
+  }
+
+  /**
+   * The options that differ from those the game was loaded with, eg "Low Luck: on", below the card;
+   * laid out again only when they changed.
+   */
+  private void showChangedRules() {
+    final List<String> changes = describeChanges();
+    if (Objects.equals(changes, shownChanges)) {
+      return;
+    }
+    shownChanges = changes;
+    changedRules.removeAll();
+    if (changes.isEmpty()) {
+      changedRules.add(
+          newHint("None: the map's own rules."), buildGridRow(0, new Insets(0, 0, 0, 0)));
+    }
+    for (int i = 0; i < changes.size(); i++) {
+      // wraps a long option's name instead of widening the column
+      changedRules.add(
+          new WrappingText(changes.get(i)), buildGridRow(i, new Insets(i == 0 ? 0 : 4, 0, 0, 0)));
+    }
+    changedRules.revalidate();
+    changedRules.repaint();
+  }
+
+  /** "Name: value" of each option that differs from the game as it was loaded. */
+  @VisibleForTesting
+  List<String> describeChanges() {
+    final GameData data = model.getGameData();
+    if (data == null) {
+      return List.of();
+    }
+    final Map<String, Object> original = originalPropertiesMap;
+    return data.getProperties().getEditableProperties().stream()
+        .filter(property -> !Objects.equals(original.get(property.getName()), property.getValue()))
+        .map(property -> property.getName() + ": " + describe(property.getValue()))
+        .toList();
+  }
+
+  private static String describe(final Object value) {
+    if (value instanceof Boolean on) {
+      return on ? "on" : "off";
+    }
+    return String.valueOf(value);
+  }
+
+  private static JComponent newHint(final String text) {
+    final WrappingText hint = new WrappingText(text);
+    hint.setForeground(LookAndFeel.getSecondaryTextColor());
+    return hint;
+  }
+
+  /**
+   * The player's rule sets of the game below the Rule sets button: a name and ✓ keep the options as
+   * one more set, a click on a set loads it, the trash can deletes it.
+   */
+  private void showRuleSets(final JComponent anchor) {
+    final JPopupMenu popup = new JPopupMenu();
+    final JTextField name = new JTextField(16);
+    name.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "Name for these rules");
+    final JButton save = new JButtonBuilder().title("✓").build();
+    final JPanel saved = new JPanel(new GridBagLayout());
+    saved.setOpaque(false);
+    final Runnable updateSave =
+        () -> {
+          final Optional<String> reason = whyNotSaved(name.getText());
+          save.setEnabled(reason.isEmpty());
+          save.setToolTipText(reason.orElse("Save"));
+        };
+    final Runnable saveAndList =
+        () -> {
+          if (whyNotSaved(name.getText()).isEmpty()) {
+            saveRuleSet(name.getText().strip());
+            name.setText("");
+            listRuleSets(saved, popup);
+          }
+        };
+    new DocumentListenerBuilder(updateSave).attachTo(name);
+    name.addActionListener(e -> saveAndList.run());
+    save.addActionListener(e -> saveAndList.run());
+    updateSave.run();
+    final JPanel entry = new JPanel(new BorderLayout(6, 0));
+    entry.setOpaque(false);
+    entry.add(name, BorderLayout.CENTER);
+    entry.add(save, BorderLayout.EAST);
+    final JPanel content = new JPanel(new BorderLayout(0, 10));
+    content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+    content.add(entry, BorderLayout.NORTH);
+    final JScrollPane savedScroll = SwingComponents.newJScrollPane(saved);
+    savedScroll.setBorder(BorderFactory.createEmptyBorder());
+    savedScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    content.add(savedScroll, BorderLayout.CENTER);
+    popup.add(content);
+    listRuleSets(saved, popup);
+    popup.show(anchor, 0, anchor.getHeight());
+    name.requestFocusInWindow();
+  }
+
+  /** Lists the saved rule sets in the popup, newest state from the disk. */
+  @VisibleForTesting
+  void listRuleSets(final JPanel saved, final JPopupMenu popup) {
+    saved.removeAll();
+    final List<String> names =
+        Optional.ofNullable(model.getGameData())
+            .map(gamePropertiesCache::getRuleSetNames)
+            .orElse(List.of());
+    if (names.isEmpty()) {
+      saved.add(
+          newHint("No rule sets yet. Change options, then name them above."),
+          buildGridRow(0, new Insets(0, 0, 0, 0)));
+    }
+    for (int i = 0; i < names.size(); i++) {
+      final String ruleSet = names.get(i);
+      final JButton use =
+          newOptionsLink(
+              ruleSet,
+              "Load",
+              () -> {
+                popup.setVisible(false);
+                useRuleSet(ruleSet);
+              });
+      use.setHorizontalAlignment(SwingConstants.LEADING);
+      // an icon only: the builder wants a title
+      final JButton delete = new JButton(new TrashIcon());
+      LookAndFeel.setBorderlessButtonStyle(delete);
+      delete.setToolTipText("Delete");
+      delete.getAccessibleContext().setAccessibleName("Delete " + ruleSet);
+      delete.addActionListener(
+          e -> {
+            deleteRuleSet(ruleSet);
+            listRuleSets(saved, popup);
+          });
+      final JPanel row = new JPanel(new BorderLayout());
+      row.setOpaque(false);
+      row.add(use, BorderLayout.CENTER);
+      row.add(delete, BorderLayout.EAST);
+      saved.add(row, buildGridRow(i, new Insets(0, 0, 0, 0)));
+    }
+    // many sets scroll in the popup instead of making it taller than the screen
+    Optional.ofNullable(SwingUtilities.getAncestorOfClass(JScrollPane.class, saved))
+        .ifPresent(
+            scroll ->
+                scroll.setPreferredSize(
+                    new Dimension(
+                        saved.getPreferredSize().width
+                            + ((JScrollPane) scroll)
+                                .getVerticalScrollBar()
+                                .getPreferredSize()
+                                .width,
+                        Math.min(saved.getPreferredSize().height, RULE_SETS_HEIGHT))));
+    saved.revalidate();
+    popup.pack();
+  }
+
+  /**
+   * Why the options cannot be kept under the name now, as the ✓'s hint: a set needs a name of its
+   * own and options that differ from the map's.
+   */
+  @VisibleForTesting
+  Optional<String> whyNotSaved(final String name) {
+    final GameData data = model.getGameData();
+    if (data == null) {
+      return Optional.of("No options");
+    }
+    if (name.isBlank()) {
+      return Optional.of("Name it first");
+    }
+    // the name is the file's: one of these would be dropped and could meet another set's name
+    if (FORBIDDEN_IN_NAMES.matcher(name).find()) {
+      return Optional.of("No \\ / : * ? \" < > |");
+    }
+    if (describeChanges().isEmpty()) {
+      return Optional.of("Change an option first");
+    }
+    // the file system may not tell "Classic" from "classic"
+    if (gamePropertiesCache.getRuleSetNames(data).stream()
+        .anyMatch(name.strip()::equalsIgnoreCase)) {
+      return Optional.of("Name taken");
+    }
+    return Optional.empty();
+  }
+
+  @VisibleForTesting
+  void saveRuleSet(final String name) {
+    Optional.ofNullable(model.getGameData())
+        .ifPresent(data -> gamePropertiesCache.saveRuleSet(data, name));
+  }
+
+  private void useRuleSet(final String name) {
+    Optional.ofNullable(model.getGameData())
+        .ifPresent(data -> gamePropertiesCache.loadRuleSetInto(data, name));
+    refreshOptions();
+  }
+
+  private void deleteRuleSet(final String name) {
+    Optional.ofNullable(model.getGameData())
+        .ifPresent(data -> gamePropertiesCache.deleteRuleSet(data, name));
   }
 
   /**
@@ -484,23 +737,39 @@ public final class GameSelectorPanel extends JPanel implements Observer {
   }
 
   public void gameSelected(final Path gameFile) {
-    BackgroundTaskRunner.runInBackground(
-        "Loading map...",
-        () -> {
-          if (model.loadMap(gameFile)) {
-            // only for new games, not saved games, we set the default options, and set them only
-            // once (the first time it is loaded)
-            loadDefaultOptions();
-          }
-        });
+    BackgroundTaskRunner.runInBackground("Loading map...", () -> model.loadMap(gameFile));
   }
 
-  /** The options saved with Make default for the map, set into the game and shown with it. */
-  @VisibleForTesting
-  void loadDefaultOptions() {
-    gamePropertiesCache.loadCachedGamePropertiesInto(model.getGameData());
-    // the editors were laid out with the map's own values when the game loaded
-    SwingUtilities.invokeLater(this::refreshOptions);
+  /** A small trash can in the button's text color, for deleting a rule set. */
+  private static final class TrashIcon implements Icon {
+    private static final int SIZE = 14;
+
+    @Override
+    public void paintIcon(final Component component, final Graphics g, final int x, final int y) {
+      final Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setColor(component.getForeground());
+      g2.setStroke(new BasicStroke(1.3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+      // the lid with its handle, then the can with two grooves
+      g2.drawLine(x + 2, y + 3, x + 12, y + 3);
+      g2.drawLine(x + 5, y + 3, x + 6, y + 1);
+      g2.drawLine(x + 6, y + 1, x + 8, y + 1);
+      g2.drawLine(x + 8, y + 1, x + 9, y + 3);
+      g2.drawRoundRect(x + 3, y + 4, 8, 9, 2, 2);
+      g2.drawLine(x + 6, y + 6, x + 6, y + 11);
+      g2.drawLine(x + 8, y + 6, x + 8, y + 11);
+      g2.dispose();
+    }
+
+    @Override
+    public int getIconWidth() {
+      return SIZE;
+    }
+
+    @Override
+    public int getIconHeight() {
+      return SIZE;
+    }
   }
 
   /**

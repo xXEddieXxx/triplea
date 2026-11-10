@@ -2,10 +2,14 @@ package games.strategy.engine.data.properties;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import games.strategy.engine.framework.lookandfeel.LookAndFeel;
+import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -13,7 +17,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -42,12 +49,20 @@ public class PropertiesUi extends JPanel {
 
   private static final int MAX_HEIGHT = 560;
 
+  /** Width of a column of grouped options; the room shows as many columns as fit. */
+  private static final int COLUMN_WIDTH = 300;
+
+  private static final int GROUP_GAP = 16;
+
+  // the client property of the grouped options' room with the number of columns it shows
+  private static final String COLUMN_COUNT = "columnCount";
+
   /** Number of properties from which the scrollable view offers a filter field. */
   private static final int FILTER_THRESHOLD = 12;
 
   private final List<Row> rows = new ArrayList<>();
-  // a narrow column of game options: in groups, one switch per line, each value's name on top
-  private final boolean narrow;
+  // game options in a card per group, one switch per line, each value's name on top
+  private final boolean grouped;
 
   public PropertiesUi(final GameProperties gameProperties, final boolean editable) {
     this(gameProperties.getEditableProperties(), editable);
@@ -61,9 +76,9 @@ public class PropertiesUi extends JPanel {
   private PropertiesUi(
       final List<? extends IEditableProperty<?>> properties,
       final boolean editable,
-      final boolean narrow) {
+      final boolean grouped) {
     super(new GridBagLayout());
-    this.narrow = narrow;
+    this.grouped = grouped;
     for (final IEditableProperty<?> property : properties) {
       rows.add(
           new Row(
@@ -75,17 +90,17 @@ public class PropertiesUi extends JPanel {
   }
 
   /**
-   * The game's options for a narrow side column, in groups like Dice & battles: one switch per
-   * line, each value's name on top.
+   * The game's options in a card per group, eg Dice & battles, with one switch per line and each
+   * value's name on top; the cards stand in as many columns as the width holds.
    */
-  public static PropertiesUi newNarrow(
+  public static PropertiesUi newGrouped(
       final GameProperties gameProperties, final boolean editable) {
     return new PropertiesUi(gameProperties.getEditableProperties(), editable, true);
   }
 
   private void layoutRows(final Collection<Row> visibleRows) {
     removeAll();
-    final int y = narrow ? addByCategory(visibleRows) : addByKind(visibleRows);
+    final int y = grouped ? addByCategory(visibleRows) : addByKind(visibleRows);
     // keeps the rows at the top when the panel is taller than they need
     add(
         new JPanel(),
@@ -121,8 +136,9 @@ public class PropertiesUi extends JPanel {
   }
 
   /**
-   * The rows under a heading per group, eg Dice & battles, so a player finds related options
-   * together; in each group the switches one per line, then the values.
+   * A card per group, eg Dice & battles, so a player finds related options together; in each the
+   * switches one per line, then the values. The cards stand in columns of one width, as many as the
+   * room holds.
    *
    * @return the next free row
    */
@@ -134,26 +150,93 @@ public class PropertiesUi extends JPanel {
                     row -> GameOptionCategory.of(row.name),
                     () -> new EnumMap<>(GameOptionCategory.class),
                     Collectors.toList()));
+    final List<JPanel> cards =
+        groups.entrySet().stream()
+            // one group needs no heading
+            .map(
+                group ->
+                    newGroupCard(
+                        groups.size() >= 2 ? group.getKey().getTitle() : "", group.getValue()))
+            .toList();
+    // the columns keep their width on the left; the room on the right decides how many there are
+    final JPanel room = new JPanel(new BorderLayout());
+    arrangeInColumns(room, cards, 1);
+    room.addComponentListener(
+        new ComponentAdapter() {
+          @Override
+          public void componentResized(final ComponentEvent e) {
+            final int count =
+                Math.clamp(
+                    (room.getWidth() + GROUP_GAP) / (COLUMN_WIDTH + GROUP_GAP),
+                    1,
+                    Math.max(1, cards.size()));
+            // laid out again only when the number of columns changes
+            if (!Integer.valueOf(count).equals(room.getClientProperty(COLUMN_COUNT))) {
+              arrangeInColumns(room, cards, count);
+            }
+          }
+        });
+    add(room, newRowConstraints(0, 0));
+    return 1;
+  }
+
+  private static JPanel newGroupCard(final String title, final List<Row> rows) {
+    final JPanel panel = new JPanel(new GridBagLayout());
+    LookAndFeel.setCardStyle(panel);
+    panel.setBorder(BorderFactory.createEmptyBorder(12, 14, 14, 14));
     int y = 0;
-    for (final Map.Entry<GameOptionCategory, List<Row>> group : groups.entrySet()) {
-      // one group needs no heading
-      if (groups.size() >= 2) {
-        add(
-            LookAndFeel.newSectionLabel(group.getKey().getTitle()),
-            newRowConstraints(y, y == 0 ? 0 : 22));
-        y++;
-      }
-      final List<Row> switches = group.getValue().stream().filter(Row::isSwitch).toList();
-      final List<Row> values = group.getValue().stream().filter(row -> !row.isSwitch()).toList();
-      if (!switches.isEmpty()) {
-        // never two switches side by side in a narrow column
-        add(newSwitchesPanel(switches, 0), newRowConstraints(y++, 6));
-      }
-      if (!values.isEmpty()) {
-        add(newStackedValuesPanel(values), newRowConstraints(y++, switches.isEmpty() ? 6 : 12));
+    if (!title.isEmpty()) {
+      panel.add(LookAndFeel.newSectionLabel(title), newRowConstraints(y++, 0));
+    }
+    final List<Row> switches = rows.stream().filter(Row::isSwitch).toList();
+    final List<Row> values = rows.stream().filter(row -> !row.isSwitch()).toList();
+    if (!switches.isEmpty()) {
+      // never two switches side by side in a group
+      panel.add(newSwitchesPanel(switches, 0), newRowConstraints(y++, 6));
+    }
+    if (!values.isEmpty()) {
+      panel.add(newStackedValuesPanel(values), newRowConstraints(y, switches.isEmpty() ? 6 : 12));
+    }
+    // the card's color shows through, else the inner panels stand as dark boxes on it
+    for (final Component inner : panel.getComponents()) {
+      if (inner instanceof JPanel innerPanel) {
+        innerPanel.setOpaque(false);
       }
     }
-    return y;
+    return panel;
+  }
+
+  /**
+   * Puts each card, in order, below the column that is shortest so far, so groups of a few options
+   * fill the room beside long ones; all columns start at the top and are one width.
+   */
+  private static void arrangeInColumns(
+      final JPanel room, final List<JPanel> cards, final int count) {
+    final List<Box> stacks =
+        IntStream.range(0, count).mapToObj(i -> Box.createVerticalBox()).toList();
+    final int[] heights = new int[count];
+    for (final JPanel card : cards) {
+      final int shortest =
+          IntStream.range(0, count).reduce((a, b) -> heights[b] < heights[a] ? b : a).orElse(0);
+      if (heights[shortest] > 0) {
+        stacks.get(shortest).add(Box.createVerticalStrut(GROUP_GAP));
+      }
+      stacks.get(shortest).add(card);
+      heights[shortest] += card.getPreferredSize().height + GROUP_GAP;
+    }
+    final JPanel columns = new JPanel(new GridLayout(1, count, GROUP_GAP, 0));
+    for (final Box stack : stacks) {
+      // at the top of its column, not stretched to the longest one; the strut sets the width
+      final JPanel column = new JPanel(new BorderLayout());
+      column.add(stack, BorderLayout.NORTH);
+      column.add(Box.createHorizontalStrut(COLUMN_WIDTH), BorderLayout.SOUTH);
+      columns.add(column);
+    }
+    room.removeAll();
+    room.add(columns, BorderLayout.WEST);
+    room.putClientProperty(COLUMN_COUNT, count);
+    room.revalidate();
+    room.repaint();
   }
 
   private static GridBagConstraints newRowConstraints(final int y, final int spaceAbove) {
@@ -264,10 +347,12 @@ public class PropertiesUi extends JPanel {
                 propertiesUi.filter(filterField.getText());
               }
             });
+    // short enough to read as a field, also above options standing in several columns
+    filterField.setColumns(24);
     return new JPanelBuilder()
         .borderLayout()
         .addNorth(
-            new JPanelBuilder().border(0, 0, 10, 0).borderLayout().addCenter(filterField).build())
+            new JPanelBuilder().border(0, 0, 10, 0).borderLayout().addWest(filterField).build())
         .addCenter(view)
         .build();
   }

@@ -2,6 +2,7 @@ package games.strategy.engine.framework.startup.ui.panels.main;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import games.strategy.engine.data.GameData;
 import games.strategy.engine.framework.I18nEngineFramework;
 import games.strategy.engine.framework.startup.ui.panels.main.game.selector.GameSelectorModel;
 import games.strategy.triplea.settings.ClientSetting;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.AbstractButton;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,36 +84,60 @@ final class MainPanelTest {
   }
 
   @DisplayName(
-      "A setup screen shows the game's options beside the players on request; the main menu has"
-          + " none")
+      "A setup screen has the players and the game's options on tabs, the map in its column; the"
+          + " main menu has neither")
   @Test
-  void setupScreenShowsGameOptions() throws Exception {
-    gameSelectorModel.setGameData(TestMapGameData.REVISED.getGameData());
+  void setupScreenShowsGameOptionsOnTheirTab() throws Exception {
+    final GameData revised = TestMapGameData.REVISED.getGameData();
+    gameSelectorModel.setGameData(revised);
     model.showLocal();
     // the game's part updates on the Swing thread
     SwingUtilities.invokeAndWait(() -> {});
-    final List<String> beforeAsked = buttonTitles(mainPanel);
-    findButton(mainPanel, "Show game options").doClick();
-    final List<String> onSetupScreen = buttonTitles(mainPanel);
+    final JTabbedPane tabs = findTabs(mainPanel);
+    final List<String> onPlayersTab = buttonTitles(mainPanel);
+    tabs.setSelectedIndex(1);
+    final List<String> onOptionsTab = buttonTitles(mainPanel);
+    model.showPbem();
+    final int tabOfNextScreen = tabs.getSelectedIndex();
 
     model.showSelectType();
 
-    assertThat(beforeAsked)
-        .as("the options wait behind their button, so the card and the players have the room")
-        .contains("Load game...", "Show game options")
-        .doesNotContain("Reset");
-    assertThat(onSetupScreen)
-        .as("the options right on the screen, below the map's card with loading a game")
+    assertThat(List.of(tabs.getTitleAt(0), tabs.getTitleAt(1)))
+        .as("the count tells there are options before the tab is opened")
+        .containsExactly(
+            "Players", "Game options · " + revised.getProperties().getEditableProperties().size());
+    assertThat(onPlayersTab)
+        .as("the players first; the map's card and the income switch stay in the column")
         .contains(
-            "Reset",
-            "Make default",
             "Load game...",
-            "Hide game options",
+            startGame,
             // the local game's players have income fields for it to show
-            text("startup.SetupPanel.resourceModifiers.Lbl"));
+            text("startup.SetupPanel.resourceModifiers.Lbl"))
+        .doesNotContain("Reset");
+    assertThat(onOptionsTab)
+        .as("the options with the whole width of the tab")
+        .contains("Reset", "Rule sets", "Load game...");
+    assertThat(tabOfNextScreen).as("each screen starts with its players").isZero();
     assertThat(buttonTitles(mainPanel))
         .as("the main menu chooses how to play first")
         .doesNotContain("Reset", "Load game...");
+  }
+
+  private static JTabbedPane findTabs(final Container container) {
+    return allComponents(container)
+        .filter(JTabbedPane.class::isInstance)
+        .map(JTabbedPane.class::cast)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static Stream<Component> allComponents(final Container container) {
+    return Arrays.stream(container.getComponents())
+        .flatMap(
+            component ->
+                Stream.concat(
+                    Stream.of(component),
+                    component instanceof Container inner ? allComponents(inner) : Stream.empty()));
   }
 
   @DisplayName("A setup screen has the link back at the top, Quit and Start Game in the footer")

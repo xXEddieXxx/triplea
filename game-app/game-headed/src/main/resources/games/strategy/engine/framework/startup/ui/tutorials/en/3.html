@@ -1,18 +1,54 @@
-<h1>Combat</h1>
-<p>A battle happens when units move into a territory or sea zone held by the enemy. It is fought in
-rounds until one side is gone or the attacker retreats.</p>
-<h2>How a round works</h2>
-<ol>
-<li>Every unit rolls one die. A unit hits when the die shows its attack value or less (when
-attacking) or its defense value or less (when defending). An infantry attacking with 1 hits only on
-a 1, a tank attacking with 3 hits on 1, 2 or 3.</li>
-<li>Each hit takes out one unit of the other side. The defender chooses which of its units are lost,
-and so do you when you are hit.</li>
-<li>After each round the attacker may retreat to a territory it came from, or fight on.</li>
-</ol>
-<h2>Good to know</h2>
+<h1>How combat works</h1>
+<p><b>In short:</b> every unit rolls a die. A low roll is a hit.</p>
+<h2>Who hits?</h2>
+<p>Every unit has two numbers: one for <b>attack</b> and one for <b>defense</b>. In a fight, each
+unit rolls one die. If the die shows its number or less, it hits.</p>
+<table align="center" cellspacing="3" cellpadding="3" border="1">
+<tr><td bgcolor="#c0392b"><font color="#ffffff"><b>1</b></font></td><td>2</td><td>3</td><td>4</td>
+<td>5</td><td>6</td><td>Infantry attacks with 1: only a 1 hits</td></tr>
+<tr><td bgcolor="#c0392b"><font color="#ffffff"><b>1</b></font></td>
+<td bgcolor="#c0392b"><font color="#ffffff"><b>2</b></font></td>
+<td bgcolor="#c0392b"><font color="#ffffff"><b>3</b></font></td><td>4</td><td>5</td><td>6</td>
+<td>A tank attacks with 3: 1, 2 or 3 hits</td></tr>
+<tr><td bgcolor="#c0392b"><font color="#ffffff"><b>1</b></font></td>
+<td bgcolor="#c0392b"><font color="#ffffff"><b>2</b></font></td>
+<td bgcolor="#c0392b"><font color="#ffffff"><b>3</b></font></td>
+<td bgcolor="#c0392b"><font color="#ffffff"><b>4</b></font></td><td>5</td><td>6</td>
+<td>A fighter defends with 4: 1 to 4 hits</td></tr>
+</table>
+<h2>What happens then?</h2>
 <ul>
-<li>Some units fire first, like submarines, or only at planes, like anti aircraft guns.</li>
-<li>Cheap units such as infantry are usually lost first, to keep the strong ones.</li>
-<li>Before you attack, the <b>battle calculator</b> in the Game menu estimates your chances.</li>
+<li>Every hit kills one unit of the other side. Each player picks which of his units die; most
+pick the cheapest first.</li>
+<li>Then the next round starts. After each round the attacker may <b>retreat</b>.</li>
+<li>The fight ends when one side has no units left. If your land units win, the territory is
+yours.</li>
 </ul>
+<h2>The units</h2>
+<table align="center" cellpadding="2">
+<tr><th></th><th align="left">Unit</th><th>Attack</th><th>Defense</th><th>Moves</th><th>Cost</th></tr>
+<tr><td><img src="asset:units/Germans/infantry.png" width="28"></td><td>Infantry</td>
+<td align="center">1</td><td align="center">2</td><td align="center">1</td><td align="center">3</td></tr>
+<tr><td><img src="asset:units/Germans/artillery.png" width="28"></td><td>Artillery</td>
+<td align="center">2</td><td align="center">2</td><td align="center">1</td><td align="center">4</td></tr>
+<tr><td><img src="asset:units/Germans/armour.png" width="28"></td><td>Tank</td>
+<td align="center">3</td><td align="center">3</td><td align="center">2</td><td align="center">5</td></tr>
+<tr><td><img src="asset:units/Germans/fighter.png" width="28"></td><td>Fighter</td>
+<td align="center">3</td><td align="center">4</td><td align="center">4</td><td align="center">10</td></tr>
+<tr><td><img src="asset:units/Germans/bomber.png" width="28"></td><td>Bomber</td>
+<td align="center">4</td><td align="center">1</td><td align="center">6</td><td align="center">12</td></tr>
+<tr><td><img src="asset:units/Germans/submarine.png" width="28"></td><td>Submarine</td>
+<td align="center">2</td><td align="center">1</td><td align="center">2</td><td align="center">6</td></tr>
+<tr><td><img src="asset:units/Germans/destroyer.png" width="28"></td><td>Destroyer</td>
+<td align="center">2</td><td align="center">2</td><td align="center">2</td><td align="center">8</td></tr>
+<tr><td><img src="asset:units/Germans/battleship.png" width="28"></td><td>Battleship</td>
+<td align="center">4</td><td align="center">4</td><td align="center">2</td><td align="center">20</td></tr>
+</table>
+<p align="center"><font color="#8a8f98">Typical values; your map may differ. In a game, Help › Unit
+Help shows the real ones.</font></p>
+<p align="center"><img src="asset:units/Germans/artillery.png" width="36"> +
+<img src="asset:units/Germans/infantry.png" width="36"> artillery helps: infantry attacks with
+2&nbsp;&nbsp;&nbsp;<img src="asset:units/Germans/battleship.png" width="36"> →
+<img src="asset:units/Germans/battleship_hit.png" width="36"> a battleship survives one hit</p>
+<p><b>Tip:</b> not sure if an attack will work? The battle calculator in the top bar (Ctrl+B)
+tells you your chances.</p>

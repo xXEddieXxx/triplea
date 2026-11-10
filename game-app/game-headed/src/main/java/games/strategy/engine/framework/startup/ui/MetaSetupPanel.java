@@ -30,6 +30,7 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -77,7 +79,8 @@ public class MetaSetupPanel extends SetupPanel {
   /** Room left of the pages, as games keep their menus off the window edge. */
   private static final int LEFT_MARGIN = 96;
 
-  private static final int SUB_MENU_WIDTH = 640;
+  // wide enough for the lines below the ways to play with others, also in German
+  private static final int SUB_MENU_WIDTH = 760;
 
   /** The menu column takes about a quarter of the window, at least and at most this. */
   private static final double MENU_SHARE = 0.24;
@@ -149,7 +152,11 @@ public class MetaSetupPanel extends SetupPanel {
 
     menus.add(newMainScreen(bundle, sources), MAIN);
     menus.add(
-        newPage(bundle, MENU_PREFIX + "Multiplayer", newMultiplayerMenu(bundle), SUB_MENU_WIDTH),
+        newPage(
+            bundle,
+            MENU_PREFIX + "Multiplayer",
+            newMultiplayerMenu(bundle, sources),
+            SUB_MENU_WIDTH),
         MULTIPLAYER);
     menus.add(newPage(bundle, MENU_PREFIX + "LoadGame", savedGames, 0), LOAD_GAME);
     menus.add(newPage(bundle, KEY_PREFIX + "UserGuideHelp.Lbl", tutorials, 0), HELP);
@@ -385,45 +392,68 @@ public class MetaSetupPanel extends SetupPanel {
     return bundle.getText(MENU_PREFIX + "Tip." + (1 + Math.floorMod(chooser, TIPS)));
   }
 
-  /** The ways to play with others: the lobby, the local network, by email and by forum. */
-  private JComponent newMultiplayerMenu(final I18nResourceBundle bundle) {
+  /**
+   * The ways to play with others as entries like those of the main menu, each with a line on what
+   * it is good for, in two groups: online (the lobby, with how busy it is, hosting and joining a
+   * game) and by message (by forum and by email).
+   */
+  private JComponent newMultiplayerMenu(
+      final I18nResourceBundle bundle, final MainMenuSources sources) {
     final List<MenuEntry> entries =
-        newMultiplayerEntries(bundle, model, () -> showMenu(FORUM_GAMES));
+        newMultiplayerEntries(
+            bundle,
+            model,
+            () -> showMenu(FORUM_GAMES),
+            new LobbyStatusPanel(bundle, sources.lobbyStats()));
+    final List<JComponent> rows = new ArrayList<>(entries);
+    // the headings before the lobby and before the forum
+    rows.add(0, newGroupHeading(bundle.getText(MENU_PREFIX + "Multiplayer.Online"), 0));
+    rows.add(4, newGroupHeading(bundle.getText(MENU_PREFIX + "Multiplayer.ByMessage"), 24));
     final JPanel column = new JPanel(new GridBagLayout());
-    IntStream.range(0, entries.size())
-        .forEach(row -> column.add(entries.get(row), newRowConstraints(row, row == 0 ? 0 : 4, 0)));
+    IntStream.range(0, rows.size())
+        .forEach(row -> column.add(rows.get(row), newRowConstraints(row, row == 0 ? 0 : 4, 0)));
     column.add(
         new JPanel(),
-        new GridBagConstraintsBuilder(0, entries.size())
+        new GridBagConstraintsBuilder(0, rows.size())
             .weightY(1)
             .fill(GridBagConstraintsFill.BOTH)
             .build());
     return column;
   }
 
+  /** The heading of a group of entries, in line with their titles, with the room above it. */
+  private static JComponent newGroupHeading(final String text, final int spaceAbove) {
+    final JLabel heading = LookAndFeel.newSectionLabel(text);
+    heading.setBorder(BorderFactory.createEmptyBorder(spaceAbove, MenuEntry.INDENT, 0, 0));
+    return heading;
+  }
+
   /**
-   * The ways to play with others; play by forum opens the player's forum games ({@link
-   * ForumGamesPanel}).
+   * The ways to play with others: the lobby, highlighted and with the line of how busy it is,
+   * hosting and joining a game, by forum and by email; play by forum opens the player's forum games
+   * ({@link ForumGamesPanel}).
    */
   @VisibleForTesting
   static List<MenuEntry> newMultiplayerEntries(
       final I18nResourceBundle bundle,
       final HeadedServerSetupModel model,
-      final Runnable showForumGames) {
+      final Runnable showForumGames,
+      final JComponent lobbyStatus) {
     final MenuEntry lobby =
         MenuEntry.newHighlighted(
             bundle.getText(KEY_PREFIX + "PlayOnline.Lbl"),
-            bundle.getText(KEY_PREFIX + "PlayOnline.Desc"));
+            bundle.getText(KEY_PREFIX + "PlayOnline.Desc"),
+            lobbyStatus);
     lobby.addActionListener(e -> model.login());
     final MenuEntry host = newWayToPlay(bundle, "HostNetworkGame");
     host.addActionListener(e -> new Thread(model::showServer).start());
     final MenuEntry join = newWayToPlay(bundle, "ConnectToNetworkedGame");
     join.addActionListener(e -> new Thread(model::showClient).start());
-    final MenuEntry email = newWayToPlay(bundle, "PlayByEmail");
-    email.addActionListener(e -> model.showPbem());
     final MenuEntry forum = newWayToPlay(bundle, "PlayByForum");
     forum.addActionListener(e -> showForumGames.run());
-    return List.of(lobby, host, join, email, forum);
+    final MenuEntry email = newWayToPlay(bundle, "PlayByEmail");
+    email.addActionListener(e -> model.showPbem());
+    return List.of(lobby, host, join, forum, email);
   }
 
   /** Creates an entry from the i18n texts "startup.SetupPanelModel.btn.{key}.Lbl" and ".Desc". */

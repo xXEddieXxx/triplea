@@ -19,12 +19,15 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,12 +142,14 @@ final class MetaSetupPanelTest {
             tuple(false, true),
             tuple(false, true),
             tuple(false, true));
-    assertThat(MetaSetupPanel.newMultiplayerEntries(I18nEngineFramework.get(), model, () -> {}))
+    assertThat(
+            MetaSetupPanel.newMultiplayerEntries(
+                I18nEngineFramework.get(), model, () -> {}, new JPanel()))
         .as("the ways to play with others have no tool tips either")
-        .allMatch(card -> card.getToolTipText() == null);
+        .allMatch(entry -> entry.getToolTipText() == null);
   }
 
-  @DisplayName("Multiplayer opens the ways to play with others")
+  @DisplayName("Multiplayer lists every way to play with others, grouped online and by message")
   @Test
   void multiplayerOpensItsMenu() {
     final MetaSetupPanel mainMenu = new MetaSetupPanel(model, OFFLINE);
@@ -152,13 +157,21 @@ final class MetaSetupPanelTest {
     findEntry(mainMenu, text("startup.MetaSetupPanel.Multiplayer")).doClick();
 
     assertThat(visibleEntries(mainMenu))
-        .as("the lobby first, then the local network, email and forum")
+        .as("the lobby first, then hosting and joining, then the forum and email")
         .containsExactly(
             text(KEY_PREFIX + "PlayOnline.Lbl"),
             text(KEY_PREFIX + "HostNetworkGame.Lbl"),
             text(KEY_PREFIX + "ConnectToNetworkedGame.Lbl"),
-            text(KEY_PREFIX + "PlayByEmail.Lbl"),
-            text(KEY_PREFIX + "PlayByForum.Lbl"));
+            text(KEY_PREFIX + "PlayByForum.Lbl"),
+            text(KEY_PREFIX + "PlayByEmail.Lbl"));
+    assertThat(visibleOf(mainMenu, JLabel.class).map(JLabel::getText).toList())
+        .as("each group under its heading")
+        .contains(
+            text("startup.MetaSetupPanel.Multiplayer.Online").toUpperCase(Locale.ROOT),
+            text("startup.MetaSetupPanel.Multiplayer.ByMessage").toUpperCase(Locale.ROOT));
+    assertThat(visibleOf(mainMenu, LobbyStatusPanel.class))
+        .as("the lobby's entry says how busy it is, as Multiplayer in the main menu does")
+        .hasSize(1);
   }
 
   @DisplayName("Play by forum opens the player's forum games, signed out with the sign-in")

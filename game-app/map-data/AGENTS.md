@@ -12,7 +12,7 @@ POJOs that mirror game XML file structure, using both JAXB annotations (`jakarta
 - **Map structure**: `Map` (territories and connections)
 - **Advanced**: `TerritoryEffectList`, `RelationshipTypes`, `PropertyList`, `VariableList`
 
-These represent "raw" XML data without semantic interpretation. All use Lombok (`@Getter`, `@Builder`).
+These represent "raw" XML data without semantic interpretation. All use Lombok (`@Getter`, `@Builder`); the parts a map editor such as Eddie's Map Editor changes (`Game`, `Map`, `Initialize`, `AttachmentList`, `PlayerList`, `Production`, `PropertyList`) also have `toBuilder`, so a change makes a new model. `Game` is written (`GameXmlWriter`) in the order map makers write it: rules first, then attachments, the start and the properties.
 
 ### `org.triplea.map.description.file`
 Handles `map.yml` metadata files:

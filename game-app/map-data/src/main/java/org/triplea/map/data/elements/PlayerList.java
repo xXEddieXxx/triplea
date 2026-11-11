@@ -11,7 +11,7 @@ import org.triplea.generic.xml.reader.annotations.Attribute;
 import org.triplea.generic.xml.reader.annotations.TagList;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerList {
@@ -25,7 +25,7 @@ public class PlayerList {
   private List<Alliance> alliances;
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Player {
@@ -41,7 +41,7 @@ public class PlayerList {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Alliance {

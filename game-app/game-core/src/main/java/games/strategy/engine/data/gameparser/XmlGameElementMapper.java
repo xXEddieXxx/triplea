@@ -153,6 +153,24 @@ public final class XmlGameElementMapper {
     return Optional.empty();
   }
 
+  /**
+   * The name under which a game XML refers to the delegate's class, the one {@link
+   * #newDelegate(String)} reads, eg "BattleDelegate"; the class's own name for one this mapper does
+   * not know.
+   */
+  public String delegateTypeName(final IDelegate delegate) {
+    // the current names come before the old ones of the same class
+    return delegateFactoriesByTypeName.entrySet().stream()
+        .filter(factory -> factory.getValue().get().getClass().equals(delegate.getClass()))
+        .map(Map.Entry::getKey)
+        .findFirst()
+        .orElseGet(
+            // an anonymous class has no canonical name
+            () ->
+                Optional.ofNullable(delegate.getClass().getCanonicalName())
+                    .orElse(delegate.getClass().getName()));
+  }
+
   private static void handleMissingObject(final String objectTypeName, final String objectName) {
     log.error(
         "Could not find "

@@ -11,7 +11,7 @@ import org.triplea.generic.xml.reader.annotations.Attribute;
 import org.triplea.generic.xml.reader.annotations.TagList;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Production {
@@ -42,7 +42,7 @@ public class Production {
 
   public interface Rule {
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     class Cost {
@@ -51,7 +51,7 @@ public class Production {
     }
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     class Result {
@@ -63,7 +63,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class ProductionRule implements Rule {
@@ -84,7 +84,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class RepairRule implements Rule {
@@ -105,7 +105,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class RepairFrontier {
@@ -114,7 +114,7 @@ public class Production {
     @XmlElement @TagList private List<RepairRules> repairRules;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RepairRules {
@@ -123,7 +123,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class ProductionFrontier {
@@ -132,7 +132,7 @@ public class Production {
     @XmlElement @TagList private List<FrontierRules> frontierRules;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FrontierRules {
@@ -141,7 +141,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class PlayerProduction {
@@ -150,7 +150,7 @@ public class Production {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class PlayerRepair {

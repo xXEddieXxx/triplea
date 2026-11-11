@@ -11,7 +11,7 @@ import org.triplea.generic.xml.reader.annotations.Attribute;
 import org.triplea.generic.xml.reader.annotations.TagList;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Map {
@@ -25,7 +25,7 @@ public class Map {
   private List<Connection> connections;
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Territory {
@@ -35,7 +35,7 @@ public class Map {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Connection {

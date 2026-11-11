@@ -11,7 +11,7 @@ import org.triplea.generic.xml.reader.annotations.Attribute;
 import org.triplea.generic.xml.reader.annotations.TagList;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class AttachmentList {
@@ -20,7 +20,7 @@ public class AttachmentList {
   private List<Attachment> attachments;
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Attachment {
@@ -40,7 +40,7 @@ public class AttachmentList {
     private List<Option> options;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Option {

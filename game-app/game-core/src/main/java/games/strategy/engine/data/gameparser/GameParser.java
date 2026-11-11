@@ -39,6 +39,7 @@ import games.strategy.triplea.delegate.GenericTechAdvance;
 import games.strategy.triplea.delegate.TechAdvance;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -144,6 +145,20 @@ public final class GameParser {
             return null;
           }
         });
+  }
+
+  /**
+   * Why the game XML does not load, eg a unit placed in a territory the map does not have; empty
+   * when it loads.
+   */
+  public static Optional<String> findError(final Path xmlFile) {
+    try (InputStream inputStream = Files.newInputStream(xmlFile)) {
+      new GameParser(xmlFile, new XmlGameElementMapper(), false).parse(inputStream);
+      return Optional.empty();
+    } catch (final Exception e) {
+      // a file that cannot be read does not load either
+      return Optional.of(Optional.ofNullable(e.getMessage()).orElse(e.getClass().getSimpleName()));
+    }
   }
 
   @Nonnull

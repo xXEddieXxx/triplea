@@ -13,7 +13,7 @@ import org.triplea.generic.xml.reader.annotations.Tag;
 import org.triplea.generic.xml.reader.annotations.TagList;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Initialize {
@@ -23,7 +23,7 @@ public class Initialize {
   @XmlElement @Tag private RelationshipInitialize relationshipInitialize;
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class OwnerInitialize {
@@ -32,7 +32,7 @@ public class Initialize {
     private List<TerritoryOwner> territoryOwners;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TerritoryOwner {
@@ -42,7 +42,7 @@ public class Initialize {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class UnitInitialize {
@@ -54,7 +54,7 @@ public class Initialize {
 
     @Getter
     @ToString
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UnitPlacement {
@@ -67,7 +67,7 @@ public class Initialize {
     }
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class HeldUnits {
@@ -78,7 +78,7 @@ public class Initialize {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class ResourceInitialize {
@@ -87,7 +87,7 @@ public class Initialize {
     private List<ResourceGiven> resourcesGiven;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ResourceGiven {
@@ -98,7 +98,7 @@ public class Initialize {
   }
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class RelationshipInitialize {
@@ -107,7 +107,7 @@ public class Initialize {
     private List<Relationship> relationships;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Relationship {

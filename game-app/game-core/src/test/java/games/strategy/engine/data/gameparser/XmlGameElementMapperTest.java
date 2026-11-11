@@ -10,6 +10,7 @@ import games.strategy.triplea.delegate.TestDelegate;
 import games.strategy.triplea.delegate.battle.BattleDelegate;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +51,24 @@ final class XmlGameElementMapperTest {
     @Test
     void shouldReturnEmptyWhenNameAbsent() {
       assertThat(xmlGameElementMapper.newDelegate("__unknown__")).isEmpty();
+    }
+  }
+
+  @Nested
+  final class DelegateTypeNameTest {
+    @Test
+    @DisplayName("An anonymous delegate class is named by its binary name, never null")
+    void anonymousDelegateGetsBinaryName() {
+      // given
+      final IDelegate anonymous = new BattleDelegate() {};
+
+      // when
+      final String name = xmlGameElementMapper.delegateTypeName(anonymous);
+
+      // then
+      assertThat(name)
+          .as("anonymous classes have no canonical name, so the binary name is the fallback")
+          .isEqualTo(anonymous.getClass().getName());
     }
   }
 

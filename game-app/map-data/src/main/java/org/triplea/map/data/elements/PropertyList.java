@@ -17,7 +17,7 @@ import org.triplea.generic.xml.reader.annotations.TagList;
 
 @NonNls
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class PropertyList {
@@ -27,7 +27,7 @@ public class PropertyList {
   private List<Property> properties;
 
   @Getter
-  @Builder
+  @Builder(toBuilder = true)
   @NoArgsConstructor
   @AllArgsConstructor
   public static class Property {
@@ -47,7 +47,7 @@ public class PropertyList {
     private XmlNumberTag numberProperty;
 
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Value {

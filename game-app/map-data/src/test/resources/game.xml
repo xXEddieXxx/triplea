@@ -2,18 +2,18 @@
 <!DOCTYPE game SYSTEM "game.dtd">
 <game>
     <info/>
-    <attachmentList/>
     <diceSides/>
-    <gamePlay/>
-    <initialize/>
+    <variableList/>
     <map/>
     <resourceList/>
     <playerList/>
     <unitList/>
     <relationshipTypes/>
     <territoryEffectList/>
+    <gamePlay/>
     <production/>
     <technology/>
+    <attachmentList/>
+    <initialize/>
     <propertyList/>
-    <variableList/>
 </game>

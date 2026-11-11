@@ -10,14 +10,24 @@ import games.strategy.triplea.attachments.RulesAttachment;
 import games.strategy.triplea.attachments.TerritoryAttachment;
 import games.strategy.triplea.attachments.UnitAttachment;
 import games.strategy.triplea.xml.TestMapGameDataLoader;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.triplea.util.Tuple;
 
 final class GameParserTest {
+
+  @Test
+  @DisplayName("A game file that cannot be read is an error, not a game that loads")
+  void findErrorOfMissingFile(@TempDir final Path folder) {
+    assertThat(GameParser.findError(folder.resolve("missing.xml")))
+        .as("Validate must not call a missing game fine")
+        .isPresent();
+  }
 
   @Test
   @DisplayName("Verify backward compatibility can parse 1.8 maps")

@@ -2,6 +2,7 @@ package org.triplea.map.data.elements;
 
 import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlRootElement;
+import jakarta.xml.bind.annotation.XmlType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,7 +17,26 @@ import org.triplea.generic.xml.reader.annotations.Tag;
  */
 @Getter
 @XmlRootElement(name = "game")
-@Builder
+// written in the order map makers write it: the rules first, the attachments and the start last
+@XmlType(
+    propOrder = {
+      "info",
+      "diceSides",
+      "variableList",
+      "map",
+      "resourceList",
+      "playerList",
+      "unitList",
+      "relationshipTypes",
+      "territoryEffectList",
+      "gamePlay",
+      "production",
+      "technology",
+      "attachmentList",
+      "initialize",
+      "propertyList"
+    })
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString

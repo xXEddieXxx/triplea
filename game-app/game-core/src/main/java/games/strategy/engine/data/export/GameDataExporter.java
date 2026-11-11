@@ -18,6 +18,7 @@ import games.strategy.engine.data.TerritoryEffect;
 import games.strategy.engine.data.UnitCollection;
 import games.strategy.engine.data.UnitType;
 import games.strategy.engine.data.gameparser.GameParser;
+import games.strategy.engine.data.gameparser.XmlGameElementMapper;
 import games.strategy.engine.data.properties.IEditableProperty;
 import games.strategy.engine.data.properties.NumberProperty;
 import games.strategy.engine.framework.ServerGame;
@@ -168,7 +169,10 @@ public class GameDataExporter {
 
   private static PropertyList.Property printEditableProperty(final IEditableProperty<?> prop) {
     final var propertyBuilder =
-        PropertyList.Property.builder().editable(true).value(String.valueOf(prop.getValue()));
+        PropertyList.Property.builder()
+            .name(prop.getName())
+            .editable(true)
+            .value(String.valueOf(prop.getValue()));
 
     if (prop.getClass().equals(NumberProperty.class)) {
       final NumberProperty numberProperty = (NumberProperty) prop;
@@ -184,6 +188,7 @@ public class GameDataExporter {
         // Special handling of notes property
         return Optional.of(
             PropertyList.Property.builder()
+                .name(propertyName)
                 .valueProperty(
                     PropertyList.Property.Value.builder().data((String) propertyValue).build())
                 .build());
@@ -361,6 +366,7 @@ public class GameDataExporter {
         .map(
             rr ->
                 Production.RepairRule.builder()
+                    .name(rr.getName())
                     .costs(
                         rr.getCosts().keySet().stream()
                             .map(
@@ -450,6 +456,7 @@ public class GameDataExporter {
         .map(
             productionRule ->
                 Production.ProductionRule.builder()
+                    .name(productionRule.getName())
                     .costs(
                         productionRule.getCosts().entrySet().stream()
                             .map(
@@ -473,6 +480,7 @@ public class GameDataExporter {
   }
 
   private static GamePlay gamePlay(final GameData data) {
+    final XmlGameElementMapper xmlNames = new XmlGameElementMapper();
     final List<GamePlay.Delegate> delegates =
         data.getDelegates().stream()
             .filter(delegate -> !delegate.getName().equals("edit"))
@@ -480,7 +488,7 @@ public class GameDataExporter {
                 delegate ->
                     GamePlay.Delegate.builder()
                         .name(delegate.getName())
-                        .javaClass(delegate.getClass().getCanonicalName())
+                        .javaClass(xmlNames.delegateTypeName(delegate))
                         .display(delegate.getDisplayName())
                         .build())
             .collect(Collectors.toList());
@@ -602,22 +610,22 @@ public class GameDataExporter {
         .resources(
             data.getResourceList().getResources().stream()
                 .map(GameDataExporter::convertResource)
-                .flatMap(Collection::stream)
                 .collect(Collectors.toList()))
         .build();
   }
 
-  private static List<ResourceList.Resource> convertResource(final Resource resource) {
-    return resource.getPlayers().isEmpty()
-        ? List.of(ResourceList.Resource.builder().name(resource.getName()).build())
-        : resource.getPlayers().stream()
-            .map(
-                player ->
-                    ResourceList.Resource.builder()
-                        .name(resource.getName())
-                        .isDisplayedFor(player.getName())
-                        .build())
-            .collect(Collectors.toList());
+  private static ResourceList.Resource convertResource(final Resource resource) {
+    // the parser reads no players as all of them, and the players separated by colons
+    final String shownFor =
+        resource.getPlayers().isEmpty()
+            ? "NONE"
+            : resource.getPlayers().stream()
+                .map(GamePlayer::getName)
+                .collect(Collectors.joining(":"));
+    return ResourceList.Resource.builder()
+        .name(resource.getName())
+        .isDisplayedFor(shownFor)
+        .build();
   }
 
   private static org.triplea.map.data.elements.Map map(final GameState data) {
